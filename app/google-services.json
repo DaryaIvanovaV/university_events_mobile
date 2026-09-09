@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "86308703974",
+    "project_id": "eventsparser-ebfde",
+    "storage_bucket": "eventsparser-ebfde.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:86308703974:android:66efe80d3d6e7d388db527",
+        "android_client_info": {
+          "package_name": "com.KSU.EventsParser"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBeJmt8A5nibyNRUQuUmXncZNy5Oeaqdxg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

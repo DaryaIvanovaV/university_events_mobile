@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Українська — мова за замовчуванням. Цей файл є і резервним: якщо для обраної
+  локалі рядка немає, Android візьме його звідси.
+  Англійський переклад — у res/values-en/strings.xml.
+  Апостроф пишемо типографським (’), щоб не екранувати його в XML.
+-->
+<resources>
+    <string name="app_name">Календар подій</string>
+
+    <!-- Шапка -->
+    <string name="header_overline">ХДУ</string>
+    <string name="title_week">Тиждень</string>
+    <string name="title_list">Усі події</string>
+    <string name="title_settings">Налаштування</string>
+
+    <!-- Нижня навігація -->
+    <string name="nav_month">Місяць</string>
+    <string name="nav_week">Тиждень</string>
+    <string name="nav_day">День</string>
+    <string name="nav_list">Події</string>
+    <string name="nav_settings">Налаштування</string>
+
+    <!-- Дні тижня, з понеділка (DayOfWeek.MONDAY) -->
+    <string-array name="weekday_initials">
+        <item>Пн</item>
+        <item>Вт</item>
+        <item>Ср</item>
+        <item>Чт</item>
+        <item>Пт</item>
+        <item>Сб</item>
+        <item>Нд</item>
+    </string-array>
+
+    <!-- Заглушки для полів, яких немає в оголошенні. Ніколи не показуємо «null»
+         і ніколи не вигадуємо дату. -->
+    <string name="date_unspecified">дата уточнюється</string>
+    <string name="time_unspecified">час уточнюється</string>
+    <string name="location_unspecified">місце уточнюється</string>
+    <string name="organizer_unspecified">організатора не вказано</string>
+    <string name="description_unspecified">опису немає</string>
+
+    <!-- Типи подій -->
+    <string name="type_conference">Конференція</string>
+    <string name="type_lecture">Лекція</string>
+    <string name="type_webinar">Вебінар</string>
+    <string name="type_seminar">Семінар</string>
+    <string name="type_workshop">Майстер-клас</string>
+    <string name="type_hackathon">Хакатон</string>
+    <string name="type_deadline">Дедлайн</string>
+    <string name="type_exam">Іспит</string>
+    <string name="type_consultation">Консультація</string>
+    <string name="type_other">Інше</string>
+
+    <!-- Екран деталей -->
+    <string name="action_back">Назад</string>
+    <string name="info_datetime">Дата і час</string>
+    <string name="info_location">Місце</string>
+    <string name="info_organizer">Організатор</string>
+    <string name="info_audience">Аудиторія</string>
+    <string name="section_description">Опис</string>
+    <string name="section_links">Посилання</string>
+    <string name="action_join">Приєднатися</string>
+    <string name="meeting_code_label">Код підключення</string>
+    <string name="action_copy">Скопіювати</string>
+    <string name="toast_copied">Скопійовано</string>
+    <string name="action_add_to_calendar">Додати в календар</string>
+    <string name="error_no_calendar_app">Не знайдено застосунку календаря</string>
+    <string name="error_cannot_open_link">Не вдалося відкрити посилання</string>
+
+    <!-- Списки та порожні стани -->
+    <string name="section_no_date">Без дати</string>
+    <string name="section_no_date_hint">Сервер не отримав дату з оголошення. Такі події не потрапляють у сітку календаря, тому зібрані тут.</string>
+    <string name="filter_all">Усі</string>
+    <string name="empty_day">Немає подій цього дня</string>
+    <string name="empty_day_long">Цього дня немає запланованих подій</string>
+    <string name="empty_feed">Подій ще немає</string>
+    <string name="empty_feed_hint">Коли модератор підтвердить першу подію, вона зʼявиться тут.</string>
+    <string name="empty_filtered">Нічого не знайдено</string>
+    <string name="empty_filtered_hint">Спробуйте змінити фільтр за типом або аудиторією.</string>
+
+    <!-- Помилки -->
+    <string name="error_unreachable">Сервер недоступний</string>
+    <string name="error_unreachable_hint">Перевірте підключення до мережі.</string>
+    <string name="error_service_unavailable">Сервіс недоступний</string>
+    <string name="error_service_unavailable_hint">База даних тимчасово недоступна. Спробуйте пізніше.</string>
+    <string name="error_generic">Щось пішло не так</string>
+    <string name="action_retry">Спробувати ще раз</string>
+    <string name="offline_banner">Офлайн — показано збережені дані</string>
+
+    <!-- Налаштування -->
+    <string name="settings_notifications">Сповіщення</string>
+    <string name="settings_notifications_desc">Push про нові події</string>
+    <string name="settings_state_on">Увімкнено</string>
+    <string name="settings_state_off">Вимкнено</string>
+    <string name="notification_channel_name">Нові події</string>
+    <string name="notification_channel_description">Сповіщення про підтверджені події факультету</string>
+    <string name="notifications_permission_denied">Показ сповіщень заборонено в налаштуваннях системи. Дозвольте його, щоб отримувати повідомлення про нові події.</string>
+    <string name="settings_language">Мова інтерфейсу</string>
+    <string name="language_uk">Українська</string>
+    <string name="language_en">English</string>
+    <!-- Підказка й кнопка очищення поля фільтра за аудиторією на вкладці «Події». -->
+    <string name="settings_audience_hint">Наприклад: 2 курс</string>
+    <string name="settings_audience_clear">Очистити</string>
+
+    <!-- Опис для читача екрана -->
+    <string name="cd_previous">Попередній</string>
+    <string name="cd_next">Наступний</string>
+    <string name="cd_open_event">Відкрити подію</string>
+</resources>

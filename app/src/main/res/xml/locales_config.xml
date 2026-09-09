@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Перелік мов застосунку. Android 13+ читає його, щоб показати наш застосунок
+  у системних налаштуваннях мов (Налаштування → Застосунки → Мова).
+  Українська стоїть першою як основна.
+-->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="uk" />
+    <locale android:name="en" />
+</locale-config>

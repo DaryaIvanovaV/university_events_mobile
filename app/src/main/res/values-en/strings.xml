@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  English translation. Keep keys in sync with res/values/strings.xml (Ukrainian).
+-->
+<resources>
+    <string name="app_name">Events Calendar</string>
+
+    <!-- Header -->
+    <string name="header_overline">KSU</string>
+    <string name="title_week">Week</string>
+    <string name="title_list">All events</string>
+    <string name="title_settings">Settings</string>
+
+    <!-- Bottom navigation -->
+    <string name="nav_month">Month</string>
+    <string name="nav_week">Week</string>
+    <string name="nav_day">Day</string>
+    <string name="nav_list">Events</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Weekdays, starting Monday -->
+    <string-array name="weekday_initials">
+        <item>Mon</item>
+        <item>Tue</item>
+        <item>Wed</item>
+        <item>Thu</item>
+        <item>Fri</item>
+        <item>Sat</item>
+        <item>Sun</item>
+    </string-array>
+
+    <!-- Placeholders for fields absent from the announcement -->
+    <string name="date_unspecified">date to be confirmed</string>
+    <string name="time_unspecified">time to be confirmed</string>
+    <string name="location_unspecified">location to be confirmed</string>
+    <string name="organizer_unspecified">organizer not specified</string>
+    <string name="description_unspecified">no description</string>
+
+    <!-- Event types -->
+    <string name="type_conference">Conference</string>
+    <string name="type_lecture">Lecture</string>
+    <string name="type_webinar">Webinar</string>
+    <string name="type_seminar">Seminar</string>
+    <string name="type_workshop">Workshop</string>
+    <string name="type_hackathon">Hackathon</string>
+    <string name="type_deadline">Deadline</string>
+    <string name="type_exam">Exam</string>
+    <string name="type_consultation">Consultation</string>
+    <string name="type_other">Other</string>
+
+    <!-- Detail screen -->
+    <string name="action_back">Back</string>
+    <string name="info_datetime">Date and time</string>
+    <string name="info_location">Location</string>
+    <string name="info_organizer">Organizer</string>
+    <string name="info_audience">Audience</string>
+    <string name="section_description">Description</string>
+    <string name="section_links">Links</string>
+    <string name="action_join">Join</string>
+    <string name="meeting_code_label">Meeting code</string>
+    <string name="action_copy">Copy</string>
+    <string name="toast_copied">Copied</string>
+    <string name="action_add_to_calendar">Add to calendar</string>
+    <string name="error_no_calendar_app">No calendar app found</string>
+    <string name="error_cannot_open_link">Could not open the link</string>
+
+    <!-- Lists and empty states -->
+    <string name="section_no_date">No date</string>
+    <string name="section_no_date_hint">The server did not get a date from the announcement. Such events cannot appear in the calendar grid, so they are collected here.</string>
+    <string name="filter_all">All</string>
+    <string name="empty_day">No events on this day</string>
+    <string name="empty_day_long">No events scheduled for this day</string>
+    <string name="empty_feed">No events yet</string>
+    <string name="empty_feed_hint">Once a moderator approves the first event, it will show up here.</string>
+    <string name="empty_filtered">Nothing found</string>
+    <string name="empty_filtered_hint">Try changing the type or audience filter.</string>
+
+    <!-- Errors -->
+    <string name="error_unreachable">Server unreachable</string>
+    <string name="error_unreachable_hint">Check your network connection.</string>
+    <string name="error_service_unavailable">Service unavailable</string>
+    <string name="error_service_unavailable_hint">The database is temporarily unavailable. Please try again later.</string>
+    <string name="error_generic">Something went wrong</string>
+    <string name="action_retry">Try again</string>
+    <string name="offline_banner">Offline — showing cached data</string>
+
+    <!-- Settings -->
+    <string name="settings_notifications">Notifications</string>
+    <string name="settings_notifications_desc">Push about new events</string>
+    <string name="settings_state_on">On</string>
+    <string name="settings_state_off">Off</string>
+    <string name="notification_channel_name">New events</string>
+    <string name="notification_channel_description">Notifications about approved faculty events</string>
+    <string name="notifications_permission_denied">Notifications are blocked in system settings. Allow them to receive messages about new events.</string>
+    <string name="settings_language">Interface language</string>
+    <string name="language_uk">Українська</string>
+    <string name="language_en">English</string>
+    <string name="settings_audience_hint">For example: 2nd year</string>
+    <string name="settings_audience_clear">Clear</string>
+
+    <!-- Screen reader descriptions -->
+    <string name="cd_previous">Previous</string>
+    <string name="cd_next">Next</string>
+    <string name="cd_open_event">Open event</string>
+</resources>

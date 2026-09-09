@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Дозвіл на незашифрований HTTP ЛИШЕ для debug-збірки і ЛИШЕ для локального backend.
+  Свідомо не використовуємо android:usesCleartextTraffic="true" — це відкрило б
+  HTTP для будь-якого хоста, зокрема в релізі.
+
+  10.0.2.2 — машина розробника, якою її бачить емулятор Android.
+  192.168.0.109 — LAN-IP цієї ж машини у Wi-Fi мережі, потрібен для перевірки
+  на фізичному телефоні. Якщо IP зміниться (роутер видає їх динамічно),
+  замініть його тут І в eventsparser.baseUrl.debug у gradle.properties.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">192.168.0.109</domain>
+    </domain-config>
+</network-security-config>

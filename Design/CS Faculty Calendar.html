@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS Faculty — Календарь событий</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="android-frame.jsx"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: oklch(0.14 0.04 250);
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100vh;
+  font-family: 'DM Sans', sans-serif;
+}
+
+/* Tweaks panel */
+#tweaks-panel {
+  position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+  background: white; border-radius: 16px; padding: 20px;
+  width: 260px; box-shadow: 0 8px 40px rgba(0,0,0,0.3);
+  display: none; font-family: 'DM Sans', sans-serif; font-size: 13px;
+}
+#tweaks-panel h4 { font-size: 14px; font-weight: 600; margin-bottom: 14px; color: #111; }
+.tweak-row { margin-bottom: 12px; }
+.tweak-row label { display: block; color: #555; margin-bottom: 4px; font-size: 12px; }
+.tweak-row select, .tweak-row input[type=range] { width: 100%; }
+</style>
+</head>
+<body>
+
+<div id="tweaks-panel">
+  <h4>Tweaks</h4>
+  <div class="tweak-row">
+    <label>Цветовая схема</label>
+    <select id="tweak-theme" onchange="applyTweaks()">
+      <option value="navy">Тёмно-синяя (классика)</option>
+      <option value="forest">Лесная зелень</option>
+      <option value="burgundy">Бордо</option>
+    </select>
+  </div>
+  <div class="tweak-row">
+    <label>Стартовый экран</label>
+    <select id="tweak-screen" onchange="applyTweaks()">
+      <option value="month">Месяц</option>
+      <option value="week">Неделя</option>
+      <option value="day">День</option>
+      <option value="list">Список</option>
+    </select>
+  </div>
+</div>
+
+<div id="root"></div>
+
+<script type="text/babel">
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "theme": "navy",
+  "startScreen": "month"
+}/*EDITMODE-END*/;
+
+// ─── DATA ────────────────────────────────────────────────────────────────────
+const EVENTS = [
+  { id:1, title:"Международная конференция по ИИ", type:"conf", date:"2026-04-07", time:"09:00", endTime:"18:00", place:"Большой конференц-зал, корп. А", speaker:"Проф. Иванов А.С.", desc:"Ежегодная конференция факультета, посвящённая последним достижениям в области искусственного интеллекта и машинного обучения. Доклады студентов, аспирантов и приглашённых спикеров.", tags:["AI","ML","Исследования"], color:"conf", notify:true, links:[{type:"site", label:"Сайт конференции", url:"ai-conf.cs.university.ru"},{type:"zoom", label:"Трансляция в Zoom", url:"us02web.zoom.us/j/8394..."}] },
+  { id:2, title:"DevFest 2026 — студенческий хакатон", type:"hack", date:"2026-04-10", time:"10:00", endTime:"22:00", place:"Лаборатория разработки, корп. Б", speaker:"Оргкомитет ФКН", desc:"48-часовой хакатон для студентов всех курсов. Призовой фонд — 150 000 ₽. Темы: Web3, EdTech, HealthTech.", tags:["Хакатон","Командная работа"], color:"hack", notify:false, links:[{type:"site", label:"Правила и регистрация", url:"devfest.cs.university.ru"},{type:"tg", label:"Telegram-канал", url:"t.me/cs_devfest"}] },
+  { id:3, title:"День открытых дверей ФКН", type:"open", date:"2026-04-14", time:"12:00", endTime:"16:00", place:"Главный холл университета", speaker:"Деканат ФКН", desc:"Презентация факультета для абитуриентов и их родителей. Экскурсия по лабораториям, встреча с преподавателями и студентами.", tags:["Абитуриентам"], color:"open", notify:true, links:[{type:"site", label:"Информация для абитуриентов", url:"cs.university.ru/admissions"}] },
+  { id:4, title:"Семинар: Квантовые вычисления", type:"conf", date:"2026-04-17", time:"14:00", endTime:"16:30", place:"Ауд. 312, корп. В", speaker:"Д.т.н. Смирнова Е.В.", desc:"Практический семинар по основам квантовых вычислений. Разбор алгоритмов Шора и Гровера с демонстрациями.", tags:["Квантовые вычисления","Семинар"], color:"conf", notify:true, links:[{type:"zoom", label:"Подключиться в Zoom", url:"us02web.zoom.us/j/4471..."},{type:"doc", label:"Материалы к семинару", url:"drive · quantum-seminar.pdf"}] },
+  { id:5, title:"Защита курсовых работ — 2 курс", type:"exam", date:"2026-04-20", time:"09:00", endTime:"17:00", place:"Ауд. 101–104, корп. А", speaker:"Комиссия кафедры", desc:"Публичная защита курсовых работ студентов второго курса по дисциплине «Алгоритмы и структуры данных».", tags:["Защита","2 курс"], color:"exam", notify:true, links:[{type:"doc", label:"График защит", url:"cs.university.ru/schedule-2.pdf"}] },
+  { id:6, title:"TechTalk: Карьера в Big Tech", type:"meet", date:"2026-04-23", time:"18:00", endTime:"20:00", place:"Амфитеатр, корп. А", speaker:"Выпускники ФКН (Яндекс, Google)", desc:"Открытая встреча с выпускниками факультета, работающими в крупнейших технологических компаниях. Q&A сессия.", tags:["Карьера","Нетворкинг"], color:"meet", notify:false, links:[{type:"zoom", label:"Онлайн-трансляция", url:"us02web.zoom.us/j/1129..."},{type:"tg", label:"Telegram-чат встречи", url:"t.me/cs_techtalk"}] },
+  { id:7, title:"Конференция молодых учёных", type:"conf", date:"2026-04-28", time:"10:00", endTime:"19:00", place:"Конференц-зал, корп. Б", speaker:"Аспирантура ФКН", desc:"Ежегодная конференция молодых учёных. Принимаются доклады по всем направлениям: теоретическая информатика, ПО, системы и сети.", tags:["Наука","Аспирантура","Конференция"], color:"conf", notify:true, links:[{type:"site", label:"Программа конференции", url:"young-sci.cs.university.ru"},{type:"zoom", label:"Zoom-трансляция", url:"us02web.zoom.us/j/5521..."},{type:"doc", label:"Сборник тезисов", url:"abstracts-2026.pdf"}] },
+  { id:8, title:"Олимпиада по программированию", type:"hack", date:"2026-05-05", time:"10:00", endTime:"16:00", place:"Лаборатория ЭВМ, корп. В", speaker:"Кафедра информатики", desc:"Индивидуальная олимпиада по алгоритмическому программированию. Участие бесплатное.", tags:["Олимпиада","Программирование"], color:"hack", notify:false, links:[{type:"site", label:"Сайт олимпиады", url:"olymp.cs.university.ru"}] },
+  { id:9, title:"Лекция: История Интернета", type:"conf", date:"2026-05-12", time:"16:00", endTime:"17:30", place:"Ауд. 201, корп. А", speaker:"Проф. Козлов В.П.", desc:"Открытая лекция для абитуриентов и первокурсников.", tags:["Лекция","История"], color:"conf", notify:false, links:[{type:"zoom", label:"Ссылка на трансляцию", url:"us02web.zoom.us/j/7788..."}] },
+];
+
+const THEMES = {
+  navy: {
+    primary: "oklch(0.28 0.10 255)",
+    primaryMid: "oklch(0.38 0.12 255)",
+    accent: "oklch(0.72 0.13 85)",
+    accentLight: "oklch(0.95 0.06 85)",
+    headerBg: "oklch(0.22 0.09 255)",
+    todayBg: "oklch(0.60 0.16 255)",
+  },
+  forest: {
+    primary: "oklch(0.25 0.08 155)",
+    primaryMid: "oklch(0.35 0.10 155)",
+    accent: "oklch(0.70 0.14 140)",
+    accentLight: "oklch(0.94 0.06 140)",
+    headerBg: "oklch(0.20 0.07 155)",
+    todayBg: "oklch(0.55 0.18 155)",
+  },
+  burgundy: {
+    primary: "oklch(0.26 0.09 15)",
+    primaryMid: "oklch(0.36 0.11 15)",
+    accent: "oklch(0.68 0.14 30)",
+    accentLight: "oklch(0.95 0.05 30)",
+    headerBg: "oklch(0.21 0.08 15)",
+    todayBg: "oklch(0.58 0.18 10)",
+  }
+};
+
+const EVENT_COLORS = {
+  conf:  { bg:"oklch(0.93 0.06 255)", dot:"oklch(0.45 0.16 255)", text:"oklch(0.25 0.10 255)" },
+  hack:  { bg:"oklch(0.93 0.08 145)", dot:"oklch(0.45 0.18 145)", text:"oklch(0.25 0.12 145)" },
+  open:  { bg:"oklch(0.94 0.07 85)",  dot:"oklch(0.60 0.18 85)",  text:"oklch(0.35 0.12 75)"  },
+  exam:  { bg:"oklch(0.94 0.06 30)",  dot:"oklch(0.55 0.18 30)",  text:"oklch(0.30 0.12 20)"  },
+  meet:  { bg:"oklch(0.93 0.06 300)", dot:"oklch(0.50 0.16 300)", text:"oklch(0.28 0.10 300)" },
+};
+
+const TYPE_LABELS = { conf:"Конференция", hack:"Хакатон", open:"Открытое мероприятие", exam:"Аттестация", meet:"Встреча" };
+
+const DAYS_RU = ["Вс","Пн","Вт","Ср","Чт","Пт","Сб"];
+const MONTHS_RU = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
+const MONTHS_GEN = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+
+function eventsOnDate(d) {
+  return EVENTS.filter(e => e.date === d);
+}
+function ymd(dt) { return dt.toISOString().slice(0,10); }
+
+// ─── ICONS ───────────────────────────────────────────────────────────────────
+const Icon = ({ name, size=20, color="currentColor" }) => {
+  const icons = {
+    calendar: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+    list:      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1.5" fill={color}/><circle cx="3" cy="12" r="1.5" fill={color}/><circle cx="3" cy="18" r="1.5" fill={color}/></svg>,
+    bell:      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>,
+    person:    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+    chevLeft:  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>,
+    chevRight: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>,
+    chevDown:  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>,
+    back:      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>,
+    pin:       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>,
+    clock:     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+    user:      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+    grid:      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>,
+    notify:    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><line x1="12" y1="2" x2="12" y2="4"/></svg>,
+    add:       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>,
+    week:      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="4" x2="8" y2="22"/><line x1="16" y1="4" x2="16" y2="22"/></svg>,
+    search:    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
+    globe:     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15 15 0 0 1 4 10 15 15 0 0 1-4 10 15 15 0 0 1-4-10 15 15 0 0 1 4-10z"/></svg>,
+    video:     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>,
+    send:      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>,
+    doc:       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="14" y2="17"/></svg>,
+    external:  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>,
+  };
+  return icons[name] || null;
+};
+
+// ─── APP ─────────────────────────────────────────────────────────────────────
+function App() {
+  const saved = (() => { try { return JSON.parse(localStorage.getItem('csfcal') || '{}'); } catch{return{};} })();
+  const tweaks = { ...TWEAK_DEFAULTS, ...saved.tweaks };
+  const T = THEMES[tweaks.theme] || THEMES.navy;
+
+  const [tab, setTab] = React.useState(saved.tab || tweaks.startScreen || 'month');
+  const [detail, setDetail] = React.useState(null);
+  const [notifs, setNotifs] = React.useState(false);
+  const [curDate, setCurDate] = React.useState(new Date(2026, 3, 23));
+  const [viewMonth, setViewMonth] = React.useState({ y:2026, m:3 });
+  const [viewWeek, setViewWeek] = React.useState(new Date(2026,3,21));
+  const [notifyStates, setNotifyStates] = React.useState(() => {
+    const s = {};
+    EVENTS.forEach(e => s[e.id] = e.notify);
+    return s;
+  });
+
+  React.useEffect(() => {
+    localStorage.setItem('csfcal', JSON.stringify({ tab, tweaks }));
+  }, [tab]);
+
+  const openDetail = (ev) => setDetail(ev);
+  const closeDetail = () => setDetail(null);
+  const toggleNotif = (id) => setNotifyStates(s => ({...s, [id]: !s[id]}));
+
+  const appStyle = {
+    height: "100%", display: "flex", flexDirection: "column",
+    background: "oklch(0.97 0.01 250)",
+    fontFamily: "'DM Sans', sans-serif",
+    position: "relative", overflow: "hidden",
+  };
+
+  return (
+    <div style={appStyle}>
+      {detail ? (
+        <EventDetail event={detail} onBack={closeDetail} T={T} notified={notifyStates[detail.id]} onToggleNotif={() => toggleNotif(detail.id)} />
+      ) : notifs ? (
+        <NotificationsScreen onBack={() => setNotifs(false)} T={T} notifyStates={notifyStates} onToggleNotif={toggleNotif} onOpenEvent={openDetail} />
+      ) : (
+        <>
+          <Header T={T} tab={tab} viewMonth={viewMonth} setViewMonth={setViewMonth} curDate={curDate} viewWeek={viewWeek} setViewWeek={setViewWeek} />
+          <div style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column" }}>
+            {tab === 'month' && <MonthView T={T} vm={viewMonth} setVm={setViewMonth} onDayClick={d=>{setCurDate(d);}} curDate={curDate} onEventClick={openDetail} />}
+            {tab === 'week'  && <WeekView T={T} viewWeek={viewWeek} setViewWeek={setViewWeek} onEventClick={openDetail} />}
+            {tab === 'day'   && <DayView T={T} curDate={curDate} setCurDate={setCurDate} onEventClick={openDetail} />}
+            {tab === 'list'  && <ListView T={T} onEventClick={openDetail} />}
+          </div>
+          <BottomNav tab={tab} setTab={setTab} T={T} onNotifs={() => setNotifs(true)} />
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── HEADER ──────────────────────────────────────────────────────────────────
+function Header({ T, tab, viewMonth, setViewMonth, curDate, viewWeek, setViewWeek }) {
+  const titles = { month: `${MONTHS_RU[viewMonth.m]} ${viewMonth.y}`, week: "Неделя", day: `${curDate.getDate()} ${MONTHS_GEN[curDate.getMonth()]}`, list: "Все события" };
+  const prevMonth = () => { let m=viewMonth.m-1, y=viewMonth.y; if(m<0){m=11;y--;} setViewMonth({y,m}); };
+  const nextMonth = () => { let m=viewMonth.m+1, y=viewMonth.y; if(m>11){m=0;y++;} setViewMonth({y,m}); };
+  const prevWeek  = () => { const d=new Date(viewWeek); d.setDate(d.getDate()-7); setViewWeek(d); };
+  const nextWeek  = () => { const d=new Date(viewWeek); d.setDate(d.getDate()+7); setViewWeek(d); };
+  return (
+    <div style={{ background: T.headerBg, padding:"12px 16px 10px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+      <div>
+        <div style={{ fontSize:11, color:"oklch(0.75 0.06 85)", fontFamily:"'DM Sans',sans-serif", letterSpacing:"0.06em", textTransform:"uppercase", marginBottom:2 }}>ФКН · МГУ</div>
+        <div style={{ fontSize:20, color:"white", fontFamily:"'Libre Baskerville',serif", fontWeight:700, letterSpacing:"-0.01em" }}>{titles[tab]}</div>
+      </div>
+      <div style={{ display:"flex", gap:4 }}>
+        {tab==='month' && <><NavBtn onClick={prevMonth} T={T}><Icon name="chevLeft" size={18} color="white"/></NavBtn><NavBtn onClick={nextMonth} T={T}><Icon name="chevRight" size={18} color="white"/></NavBtn></>}
+        {tab==='week'  && <><NavBtn onClick={prevWeek}  T={T}><Icon name="chevLeft" size={18} color="white"/></NavBtn><NavBtn onClick={nextWeek}  T={T}><Icon name="chevRight" size={18} color="white"/></NavBtn></>}
+      </div>
+    </div>
+  );
+}
+const NavBtn = ({onClick,children,T}) => (
+  <button onClick={onClick} style={{ background:"oklch(0.35 0.08 255 / 0.4)", border:"none", borderRadius:8, width:32, height:32, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>{children}</button>
+);
+
+// ─── MONTH VIEW ──────────────────────────────────────────────────────────────
+function MonthView({ T, vm, setVm, onDayClick, curDate, onEventClick }) {
+  const { y, m } = vm;
+  const firstDay = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  const today = ymd(new Date());
+  const [selected, setSelected] = React.useState(ymd(curDate));
+
+  const cells = [];
+  for(let i=0;i<firstDay;i++) cells.push(null);
+  for(let d=1;d<=daysInMonth;d++) cells.push(d);
+
+  const selEvs = eventsOnDate(selected);
+
+  const selectDay = (d) => {
+    const s = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    setSelected(s);
+    onDayClick(new Date(y, m, d));
+  };
+
+  return (
+    <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+      {/* Day headers */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", padding:"8px 12px 4px", background:"white", borderBottom:"1px solid oklch(0.92 0.01 250)" }}>
+        {DAYS_RU.map(d => (
+          <div key={d} style={{ textAlign:"center", fontSize:11, color:"oklch(0.55 0.04 255)", fontWeight:600, letterSpacing:"0.05em" }}>{d}</div>
+        ))}
+      </div>
+      {/* Calendar grid */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", padding:"4px 12px", background:"white", gap:"2px 0" }}>
+        {cells.map((d,i) => {
+          if(!d) return <div key={i}/>;
+          const ds = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+          const evs = eventsOnDate(ds);
+          const isToday = ds === today;
+          const isSel = ds === selected;
+          return (
+            <div key={i} onClick={() => selectDay(d)} style={{ display:"flex", flexDirection:"column", alignItems:"center", padding:"3px 0", cursor:"pointer" }}>
+              <div style={{
+                width:30, height:30, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center",
+                background: isSel ? T.primary : isToday ? T.accent : "transparent",
+                color: (isSel||isToday) ? "white" : "oklch(0.18 0.04 255)",
+                fontSize:13, fontWeight: isToday ? 700 : 400,
+              }}>{d}</div>
+              <div style={{ display:"flex", gap:2, marginTop:1, height:5 }}>
+                {evs.slice(0,3).map((e,j) => (
+                  <div key={j} style={{ width:4, height:4, borderRadius:"50%", background: EVENT_COLORS[e.color].dot }}/>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {/* Events for selected day */}
+      <div style={{ flex:1, overflow:"auto", padding:"10px 16px", background:"oklch(0.97 0.01 250)" }}>
+        {selEvs.length === 0 ? (
+          <div style={{ textAlign:"center", padding:"24px 0", color:"oklch(0.65 0.03 255)", fontSize:13 }}>Нет событий в этот день</div>
+        ) : (
+          <>
+            <div style={{ fontSize:11, color:"oklch(0.55 0.04 255)", fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase", marginBottom:8 }}>
+              {new Date(selected+'T12:00').getDate()} {MONTHS_GEN[new Date(selected+'T12:00').getMonth()]}
+            </div>
+            {selEvs.map(e => <EventCard key={e.id} event={e} onClick={() => onEventClick(e)} />)}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── WEEK VIEW ────────────────────────────────────────────────────────────────
+function WeekView({ T, viewWeek, setViewWeek, onEventClick }) {
+  // Get Monday of current week
+  const mon = new Date(viewWeek);
+  mon.setDate(mon.getDate() - ((mon.getDay()+6)%7));
+  const days = Array.from({length:7}, (_,i) => { const d=new Date(mon); d.setDate(d.getDate()+i); return d; });
+  const today = ymd(new Date());
+
+  return (
+    <div style={{ flex:1, overflow:"auto", background:"white" }}>
+      {/* Day headers strip */}
+      <div style={{ display:"flex", borderBottom:"1px solid oklch(0.93 0.01 250)", position:"sticky", top:0, background:"white", zIndex:2 }}>
+        {days.map((d,i) => {
+          const ds = ymd(d);
+          const isToday = ds === today;
+          return (
+            <div key={i} style={{ flex:1, textAlign:"center", padding:"8px 2px 6px", borderRight: i<6 ? "1px solid oklch(0.93 0.01 250)" : "none" }}>
+              <div style={{ fontSize:10, color:"oklch(0.60 0.04 255)", letterSpacing:"0.06em", textTransform:"uppercase" }}>{DAYS_RU[d.getDay()]}</div>
+              <div style={{ width:24, height:24, borderRadius:"50%", margin:"2px auto 0", display:"flex", alignItems:"center", justifyContent:"center", background: isToday ? T.accent : "transparent", color: isToday ? "white" : "oklch(0.18 0.04 255)", fontSize:13, fontWeight: isToday ? 700:400 }}>{d.getDate()}</div>
+            </div>
+          );
+        })}
+      </div>
+      {/* Events columns */}
+      <div style={{ display:"flex", minHeight:300 }}>
+        {days.map((d,i) => {
+          const ds = ymd(d);
+          const evs = eventsOnDate(ds);
+          return (
+            <div key={i} style={{ flex:1, borderRight: i<6 ? "1px solid oklch(0.93 0.01 250)" : "none", padding:"6px 3px", display:"flex", flexDirection:"column", gap:3 }}>
+              {evs.map(e => {
+                const col = EVENT_COLORS[e.color];
+                return (
+                  <div key={e.id} onClick={() => onEventClick(e)} style={{ background:col.bg, borderRadius:5, padding:"4px 5px", cursor:"pointer" }}>
+                    <div style={{ fontSize:9, fontWeight:600, color:col.text, lineHeight:1.3, overflow:"hidden", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>{e.title}</div>
+                    <div style={{ fontSize:8, color:col.text, opacity:0.7, marginTop:1 }}>{e.time}</div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── DAY VIEW ─────────────────────────────────────────────────────────────────
+function DayView({ T, curDate, setCurDate, onEventClick }) {
+  const ds = ymd(curDate);
+  const evs = eventsOnDate(ds);
+  const prev = () => { const d=new Date(curDate); d.setDate(d.getDate()-1); setCurDate(d); };
+  const next = () => { const d=new Date(curDate); d.setDate(d.getDate()+1); setCurDate(d); };
+
+  return (
+    <div style={{ flex:1, overflow:"auto", background:"oklch(0.97 0.01 250)" }}>
+      {/* Day nav */}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 16px 8px", background:"white", borderBottom:"1px solid oklch(0.93 0.01 250)" }}>
+        <button onClick={prev} style={{ background:"none", border:"none", cursor:"pointer", padding:4 }}><Icon name="chevLeft" size={20} color="oklch(0.45 0.06 255)"/></button>
+        <div style={{ textAlign:"center" }}>
+          <div style={{ fontSize:18, fontFamily:"'Libre Baskerville',serif", fontWeight:700, color:"oklch(0.18 0.08 255)" }}>
+            {curDate.getDate()} {MONTHS_GEN[curDate.getMonth()]}
+          </div>
+          <div style={{ fontSize:12, color:"oklch(0.55 0.04 255)" }}>{DAYS_RU[curDate.getDay()]}</div>
+        </div>
+        <button onClick={next} style={{ background:"none", border:"none", cursor:"pointer", padding:4 }}><Icon name="chevRight" size={20} color="oklch(0.45 0.06 255)"/></button>
+      </div>
+      <div style={{ padding:"12px 16px" }}>
+        {evs.length === 0 ? (
+          <div style={{ textAlign:"center", padding:"40px 0", color:"oklch(0.65 0.03 255)", fontSize:13 }}>
+            <div style={{ fontSize:32, marginBottom:8 }}>📭</div>
+            В этот день нет запланированных событий
+          </div>
+        ) : evs.map(e => <EventCard key={e.id} event={e} onClick={() => onEventClick(e)} expanded />)}
+      </div>
+    </div>
+  );
+}
+
+// ─── LIST VIEW ────────────────────────────────────────────────────────────────
+function ListView({ T, onEventClick }) {
+  const [filter, setFilter] = React.useState("all");
+  const types = ["all","conf","hack","open","exam","meet"];
+  const typeLabels = {all:"Все", conf:"Конф.", hack:"Хакатон", open:"Открытые", exam:"Аттест.", meet:"Встречи"};
+
+  const filtered = filter === "all" ? EVENTS : EVENTS.filter(e => e.color === filter);
+
+  // Group by month
+  const grouped = {};
+  filtered.forEach(e => {
+    const k = e.date.slice(0,7);
+    if(!grouped[k]) grouped[k] = [];
+    grouped[k].push(e);
+  });
+
+  return (
+    <div style={{ flex:1, overflow:"auto", background:"oklch(0.97 0.01 250)" }}>
+      {/* Filter chips */}
+      <div style={{ display:"flex", gap:6, padding:"10px 16px", overflowX:"auto", background:"white", borderBottom:"1px solid oklch(0.93 0.01 250)" }}>
+        {types.map(t => (
+          <button key={t} onClick={() => setFilter(t)} style={{
+            padding:"5px 12px", borderRadius:20, border:"none", cursor:"pointer", whiteSpace:"nowrap",
+            background: filter===t ? T.primary : "oklch(0.93 0.02 250)",
+            color: filter===t ? "white" : "oklch(0.35 0.06 255)",
+            fontSize:12, fontWeight:500, fontFamily:"'DM Sans',sans-serif",
+          }}>{typeLabels[t]}</button>
+        ))}
+      </div>
+      <div style={{ padding:"8px 0 24px" }}>
+        {Object.entries(grouped).map(([k,evs]) => {
+          const [y,m] = k.split('-');
+          return (
+            <div key={k}>
+              <div style={{ padding:"12px 16px 6px", fontSize:11, color:"oklch(0.55 0.04 255)", fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase" }}>
+                {MONTHS_RU[parseInt(m)-1]} {y}
+              </div>
+              {evs.map(e => <EventCard key={e.id} event={e} onClick={() => onEventClick(e)} showDate />)}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── EVENT CARD ───────────────────────────────────────────────────────────────
+function EventCard({ event:e, onClick, expanded, showDate }) {
+  const col = EVENT_COLORS[e.color];
+  return (
+    <div onClick={onClick} style={{
+      display:"flex", gap:10, padding:"10px 14px", marginBottom:6,
+      background:"white", borderRadius:12, cursor:"pointer",
+      boxShadow:"0 1px 4px oklch(0.5 0.04 255 / 0.08)",
+      borderLeft:`3px solid ${col.dot}`,
+      marginLeft:16, marginRight:16,
+    }}>
+      <div style={{ flex:1 }}>
+        {showDate && <div style={{ fontSize:10, color:"oklch(0.60 0.04 255)", marginBottom:2 }}>
+          {new Date(e.date+'T12:00').getDate()} {MONTHS_GEN[new Date(e.date+'T12:00').getMonth()]}
+        </div>}
+        <div style={{ fontSize:13, fontWeight:600, color:"oklch(0.15 0.06 255)", lineHeight:1.3, marginBottom:3 }}>{e.title}</div>
+        <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+          <span style={{ fontSize:11, color:"oklch(0.55 0.04 255)" }}>{e.time} — {e.endTime}</span>
+          <span style={{ fontSize:10, padding:"1px 7px", borderRadius:20, background:col.bg, color:col.text, fontWeight:500 }}>{TYPE_LABELS[e.type]}</span>
+        </div>
+        {expanded && <div style={{ fontSize:11, color:"oklch(0.60 0.04 255)", marginTop:4 }}><Icon name="pin" size={11} color="oklch(0.60 0.04 255)"/> {e.place}</div>}
+      </div>
+      <div style={{ display:"flex", alignItems:"center" }}>
+        <Icon name="chevRight" size={16} color="oklch(0.70 0.04 255)"/>
+      </div>
+    </div>
+  );
+}
+
+// ─── EVENT DETAIL ─────────────────────────────────────────────────────────────
+function EventDetail({ event:e, onBack, T, notified, onToggleNotif }) {
+  const col = EVENT_COLORS[e.color];
+  const d = new Date(e.date+'T12:00');
+  return (
+    <div style={{ height:"100%", display:"flex", flexDirection:"column", background:"oklch(0.97 0.01 250)" }}>
+      {/* Top bar */}
+      <div style={{ background:T.headerBg, padding:"12px 16px 14px" }}>
+        <button onClick={onBack} style={{ background:"none", border:"none", cursor:"pointer", display:"flex", alignItems:"center", gap:4, color:"white", opacity:0.8, marginBottom:10, padding:0, fontFamily:"'DM Sans',sans-serif", fontSize:13 }}>
+          <Icon name="back" size={18} color="white"/><span>Назад</span>
+        </button>
+        <div style={{ display:"inline-flex", padding:"3px 10px", borderRadius:20, background:col.bg, marginBottom:8 }}>
+          <span style={{ fontSize:11, color:col.text, fontWeight:600 }}>{TYPE_LABELS[e.type]}</span>
+        </div>
+        <div style={{ fontSize:20, fontFamily:"'Libre Baskerville',serif", fontWeight:700, color:"white", lineHeight:1.3 }}>{e.title}</div>
+      </div>
+
+      <div style={{ flex:1, overflow:"auto", padding:"16px" }}>
+        {/* Info grid */}
+        <div style={{ background:"white", borderRadius:14, padding:"14px 16px", marginBottom:12, boxShadow:"0 1px 6px oklch(0.5 0.04 255 / 0.08)" }}>
+          <InfoRow icon="clock" label="Дата и время" value={`${d.getDate()} ${MONTHS_GEN[d.getMonth()]} ${d.getFullYear()}, ${e.time} – ${e.endTime}`} />
+          <div style={{ height:1, background:"oklch(0.93 0.01 250)", margin:"10px 0" }}/>
+          <InfoRow icon="pin"   label="Место" value={e.place} />
+          <div style={{ height:1, background:"oklch(0.93 0.01 250)", margin:"10px 0" }}/>
+          <InfoRow icon="user"  label="Докладчик / организатор" value={e.speaker} />
+        </div>
+
+        {/* Description */}
+        <div style={{ background:"white", borderRadius:14, padding:"14px 16px", marginBottom:12, boxShadow:"0 1px 6px oklch(0.5 0.04 255 / 0.08)" }}>
+          <div style={{ fontSize:11, color:"oklch(0.55 0.04 255)", fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase", marginBottom:8 }}>Описание</div>
+          <div style={{ fontSize:13, color:"oklch(0.25 0.05 255)", lineHeight:1.6 }}>{e.desc}</div>
+        </div>
+
+        {/* Tags */}
+        <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:14 }}>
+          {e.tags.map(t => (
+            <span key={t} style={{ padding:"4px 10px", borderRadius:20, background:col.bg, color:col.text, fontSize:11, fontWeight:500 }}>#{t}</span>
+          ))}
+        </div>
+
+        {/* Notification toggle */}
+        <div style={{ background:"white", borderRadius:14, padding:"14px 16px", marginBottom:12, boxShadow:"0 1px 6px oklch(0.5 0.04 255 / 0.08)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <Icon name="bell" size={18} color={notified ? T.accent : "oklch(0.60 0.04 255)"}/>
+            <div>
+              <div style={{ fontSize:13, fontWeight:500, color:"oklch(0.18 0.06 255)" }}>Напоминание</div>
+              <div style={{ fontSize:11, color:"oklch(0.60 0.04 255)" }}>{notified ? "За 1 час до начала" : "Выключено"}</div>
+            </div>
+          </div>
+          <Toggle on={notified} onToggle={onToggleNotif} T={T}/>
+        </div>
+
+        {/* Links block */}
+        {e.links && e.links.length > 0 && (
+          <div style={{ background:"white", borderRadius:14, padding:"14px 16px", boxShadow:"0 1px 6px oklch(0.5 0.04 255 / 0.08)" }}>
+            <div style={{ fontSize:11, color:"oklch(0.55 0.04 255)", fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase", marginBottom:10 }}>Ссылки</div>
+            {e.links.map((l, i) => <LinkRow key={i} link={l} T={T} isLast={i===e.links.length-1} />)}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function LinkRow({ link, T, isLast }) {
+  const meta = {
+    site: { icon:"globe", tint:"oklch(0.55 0.14 255)", bg:"oklch(0.95 0.04 255)" },
+    zoom: { icon:"video", tint:"oklch(0.50 0.16 250)", bg:"oklch(0.94 0.05 250)" },
+    tg:   { icon:"send",  tint:"oklch(0.55 0.14 220)", bg:"oklch(0.94 0.05 220)" },
+    doc:  { icon:"doc",   tint:"oklch(0.48 0.10 60)",  bg:"oklch(0.95 0.05 75)"  },
+  }[link.type] || { icon:"globe", tint:"oklch(0.45 0.08 255)", bg:"oklch(0.94 0.02 255)" };
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0", borderBottom: isLast ? "none" : "1px solid oklch(0.95 0.01 250)", cursor:"pointer" }}>
+      <div style={{ width:34, height:34, borderRadius:10, background:meta.bg, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+        <Icon name={meta.icon} size={16} color={meta.tint}/>
+      </div>
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ fontSize:13, fontWeight:500, color:"oklch(0.18 0.06 255)" }}>{link.label}</div>
+        <div style={{ fontSize:11, color:meta.tint, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{link.url}</div>
+      </div>
+      <Icon name="external" size={15} color="oklch(0.60 0.04 255)"/>
+    </div>
+  );
+}
+
+function InfoRow({ icon, label, value }) {
+  return (
+    <div style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
+      <div style={{ marginTop:1 }}><Icon name={icon} size={15} color="oklch(0.55 0.06 255)"/></div>
+      <div style={{ flex:1 }}>
+        <div style={{ fontSize:10, color:"oklch(0.60 0.04 255)", letterSpacing:"0.05em", textTransform:"uppercase", marginBottom:1 }}>{label}</div>
+        <div style={{ fontSize:13, color:"oklch(0.18 0.06 255)", lineHeight:1.4 }}>{value}</div>
+      </div>
+    </div>
+  );
+}
+
+const Toggle = ({ on, onToggle, T }) => (
+  <div onClick={onToggle} style={{ width:44, height:26, borderRadius:13, background: on ? T.accent : "oklch(0.82 0.02 255)", cursor:"pointer", position:"relative", transition:"background 0.2s" }}>
+    <div style={{ position:"absolute", top:3, left: on ? 21 : 3, width:20, height:20, borderRadius:"50%", background:"white", boxShadow:"0 1px 3px rgba(0,0,0,0.2)", transition:"left 0.2s" }}/>
+  </div>
+);
+
+// ─── NOTIFICATIONS SCREEN ─────────────────────────────────────────────────────
+function NotificationsScreen({ onBack, T, notifyStates, onToggleNotif, onOpenEvent }) {
+  const withNotif = EVENTS.filter(e => notifyStates[e.id]);
+  return (
+    <div style={{ height:"100%", display:"flex", flexDirection:"column", background:"oklch(0.97 0.01 250)" }}>
+      <div style={{ background:T.headerBg, padding:"12px 16px 14px" }}>
+        <button onClick={onBack} style={{ background:"none", border:"none", cursor:"pointer", display:"flex", alignItems:"center", gap:4, color:"white", opacity:0.8, marginBottom:10, padding:0, fontFamily:"'DM Sans',sans-serif", fontSize:13 }}>
+          <Icon name="back" size={18} color="white"/><span>Назад</span>
+        </button>
+        <div style={{ fontSize:20, fontFamily:"'Libre Baskerville',serif", fontWeight:700, color:"white" }}>Уведомления</div>
+      </div>
+      <div style={{ flex:1, overflow:"auto", padding:"12px 0 24px" }}>
+        {withNotif.length === 0 ? (
+          <div style={{ textAlign:"center", padding:"40px 16px", color:"oklch(0.65 0.03 255)", fontSize:13 }}>Нет активных напоминаний</div>
+        ) : withNotif.map(e => {
+          const col = EVENT_COLORS[e.color];
+          const d = new Date(e.date+'T12:00');
+          return (
+            <div key={e.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 16px", marginBottom:6, background:"white", borderRadius:12, marginLeft:16, marginRight:16, boxShadow:"0 1px 4px oklch(0.5 0.04 255 / 0.08)", cursor:"pointer" }} onClick={() => onOpenEvent(e)}>
+              <div style={{ width:8, height:8, borderRadius:"50%", background:col.dot, flexShrink:0 }}/>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:13, fontWeight:500, color:"oklch(0.15 0.06 255)" }}>{e.title}</div>
+                <div style={{ fontSize:11, color:"oklch(0.60 0.04 255)" }}>{d.getDate()} {MONTHS_GEN[d.getMonth()]}, {e.time} · За 1 час</div>
+              </div>
+              <Toggle on={notifyStates[e.id]} onToggle={() => onToggleNotif(e.id)} T={T}/>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── BOTTOM NAV ───────────────────────────────────────────────────────────────
+function BottomNav({ tab, setTab, T, onNotifs }) {
+  const items = [
+    { id:"month", icon:"calendar", label:"Месяц" },
+    { id:"week",  icon:"week",     label:"Неделя" },
+    { id:"day",   icon:"grid",     label:"День" },
+    { id:"list",  icon:"list",     label:"События" },
+  ];
+  return (
+    <div style={{ background:"white", borderTop:"1px solid oklch(0.92 0.01 250)", display:"flex", alignItems:"stretch", paddingBottom:"env(safe-area-inset-bottom, 4px)", boxShadow:"0 -2px 12px oklch(0.5 0.04 255 / 0.06)" }}>
+      {items.map(it => {
+        const active = tab === it.id;
+        return (
+          <button key={it.id} onClick={() => setTab(it.id)} style={{ flex:1, border:"none", background:"none", cursor:"pointer", padding:"8px 4px 6px", display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
+            <Icon name={it.icon} size={21} color={active ? T.primary : "oklch(0.65 0.04 255)"}/>
+            <span style={{ fontSize:9, fontWeight: active ? 600:400, color: active ? T.primary : "oklch(0.65 0.04 255)", fontFamily:"'DM Sans',sans-serif", letterSpacing:"0.02em" }}>{it.label}</span>
+          </button>
+        );
+      })}
+      <button onClick={onNotifs} style={{ flex:1, border:"none", background:"none", cursor:"pointer", padding:"8px 4px 6px", display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
+        <div style={{ position:"relative" }}>
+          <Icon name="bell" size={21} color="oklch(0.65 0.04 255)"/>
+          <div style={{ position:"absolute", top:-2, right:-2, width:7, height:7, borderRadius:"50%", background:T.accent, border:"1.5px solid white" }}/>
+        </div>
+        <span style={{ fontSize:9, color:"oklch(0.65 0.04 255)", fontFamily:"'DM Sans',sans-serif", letterSpacing:"0.02em" }}>Alerts</span>
+      </button>
+    </div>
+  );
+}
+
+// ─── MOUNT ────────────────────────────────────────────────────────────────────
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <AndroidDevice statusBarStyle="light-content">
+    <App/>
+  </AndroidDevice>
+);
+
+// ─── TWEAKS ───────────────────────────────────────────────────────────────────
+window.addEventListener('message', e => {
+  if(e.data?.type === '__activate_edit_mode') document.getElementById('tweaks-panel').style.display = 'block';
+  if(e.data?.type === '__deactivate_edit_mode') document.getElementById('tweaks-panel').style.display = 'none';
+});
+window.parent.postMessage({ type:'__edit_mode_available' }, '*');
+
+function applyTweaks() {
+  const theme = document.getElementById('tweak-theme').value;
+  const screen = document.getElementById('tweak-screen').value;
+  window.parent.postMessage({ type:'__edit_mode_set_keys', edits:{ theme, startScreen:screen } }, '*');
+}
+</script>
+</body>
+</html>
