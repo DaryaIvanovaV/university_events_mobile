@@ -1,8 +1,10 @@
 package com.KSU.EventsParser.ui.util
 
+import android.content.res.Resources
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import com.KSU.EventsParser.R
 import com.KSU.EventsParser.core.util.AppDateFormat
@@ -42,14 +44,19 @@ fun EventType.label(): String = stringResource(
     }
 )
 
-/** «3 квітня», або сирий рядок, якщо дата не розібралася, або заглушка. */
-@Composable
-fun Event.dateText(): String {
-    val locale = rememberAppLocale()
-    return date?.let { AppDateFormat.dayMonth(it, locale) }
+/**
+ * «3 квітня», або сирий рядок, якщо дата не розібралася, або заглушка.
+ *
+ * Варіант без Compose — для місць поза екраном (сповіщення нагадування).
+ * Правило заглушки одне на обидва варіанти.
+ */
+fun Event.dateText(res: Resources, locale: Locale): String =
+    date?.let { AppDateFormat.dayMonth(it, locale) }
         ?: dateRaw?.takeIf { it.isNotBlank() }
-        ?: stringResource(R.string.date_unspecified)
-}
+        ?: res.getString(R.string.date_unspecified)
+
+@Composable
+fun Event.dateText(): String = dateText(LocalResources.current, rememberAppLocale())
 
 /** «3 квітня 2026» — розгорнутий варіант для екрана деталей. */
 @Composable
@@ -65,12 +72,13 @@ fun Event.fullDateText(): String {
  * на сервері немає валідатора цього поля, і значення на кшталт "11:00-16:00"
  * історично просочувалися. Викинути їх було б гірше, ніж показати.
  */
-@Composable
-fun Event.timeText(): String {
-    return time?.let { AppDateFormat.time(it) }
+fun Event.timeText(res: Resources): String =
+    time?.let { AppDateFormat.time(it) }
         ?: timeRaw?.takeIf { it.isNotBlank() }
-        ?: stringResource(R.string.time_unspecified)
-}
+        ?: res.getString(R.string.time_unspecified)
+
+@Composable
+fun Event.timeText(): String = timeText(LocalResources.current)
 
 @Composable
 fun Event.locationText(): String =

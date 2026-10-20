@@ -53,6 +53,7 @@ fun AppNavHost(
     val state by viewModel.state.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
     val audienceFilter by viewModel.audienceFilter.collectAsState()
+    val reminders by viewModel.reminders.collectAsState()
 
     val showBottomNav = currentRoute != Routes.DETAIL
 
@@ -143,7 +144,13 @@ fun AppNavHost(
                 val cached = viewModel.findById(eventId)
 
                 if (cached != null) {
-                    DetailScreen(event = cached, onBack = { navController.popBackStack() })
+                    DetailScreen(
+                        event = cached,
+                        reminderOffsetMinutes = reminders[cached.id],
+                        onSetReminder = { viewModel.setReminder(cached.id, it) },
+                        onClearReminder = { viewModel.clearReminder(cached.id) },
+                        onBack = { navController.popBackStack() },
+                    )
                 } else {
                     // Такий випадок штатний лише для переходу з push: подію щойно
                     // підтвердили, і в кеші її ще немає. Синхронізуємось один раз.
@@ -159,6 +166,9 @@ fun AppNavHost(
                     when {
                         event != null -> DetailScreen(
                             event = event,
+                            reminderOffsetMinutes = reminders[event.id],
+                            onSetReminder = { viewModel.setReminder(event.id, it) },
+                            onClearReminder = { viewModel.clearReminder(event.id) },
                             onBack = { navController.popBackStack() },
                         )
                         // Події немає й після синхронізації — її могли відхилити

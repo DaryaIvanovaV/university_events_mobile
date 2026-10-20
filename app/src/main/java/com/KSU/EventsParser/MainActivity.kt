@@ -49,7 +49,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             EventsParserTheme {
                 val eventsViewModel: EventsViewModel = viewModel(
-                    factory = EventsViewModel.factory(container.eventsRepository),
+                    factory = EventsViewModel.factory(
+                        container.eventsRepository,
+                        container.reminderRepository,
+                    ),
                 )
                 val deepLinkEventId by pendingEventId.collectAsState()
 

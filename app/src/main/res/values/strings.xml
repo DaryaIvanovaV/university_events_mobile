@@ -103,6 +103,44 @@
     <string name="settings_audience_hint">Наприклад: 2 курс</string>
     <string name="settings_audience_clear">Очистити</string>
 
+    <!-- Нагадування: блок на екрані деталей -->
+    <string name="reminder_title">Нагадування</string>
+    <!-- %1$s — зсув: «30 хв», «3 год», «2 дні». -->
+    <string name="reminder_before">За %1$s до початку</string>
+    <string name="reminder_custom">Своє…</string>
+    <!-- %1$s — час відліку, наприклад «09:00». -->
+    <string name="reminder_fallback_time_hint">Час не вказано — відлік від %1$s</string>
+    <string name="reminder_no_date">Немає точної дати — нагадування недоступне</string>
+    <string name="reminder_event_started">Подія вже почалася</string>
+    <string name="reminder_permission_hint">Сповіщення заборонено в налаштуваннях системи. Дозвольте їх, щоб отримати нагадування.</string>
+
+    <!-- Нагадування: діалог власного значення -->
+    <string name="reminder_custom_title">Своє нагадування</string>
+    <string name="reminder_custom_hint">За скільки часу до початку нагадати</string>
+    <string name="reminder_custom_amount_hint">Наприклад: 45</string>
+    <string name="reminder_custom_unit_minutes">хв</string>
+    <string name="reminder_custom_unit_hours">год</string>
+    <string name="reminder_custom_unit_days">дн.</string>
+    <!-- %1$s — найбільший дозволений зсув: «30 днів». -->
+    <string name="reminder_custom_error">Нагадування має спрацювати до початку події і не раніше ніж за %1$s.</string>
+    <string name="action_ok">Гаразд</string>
+    <string name="action_cancel">Скасувати</string>
+
+    <!-- Нагадування: підписи зсувів. «%d» — число, одиниця — окремо. -->
+    <string name="reminder_unit_minutes">%d хв</string>
+    <string name="reminder_unit_hours">%d год</string>
+    <plurals name="reminder_days">
+        <item quantity="one">%d день</item>
+        <item quantity="few">%d дні</item>
+        <item quantity="many">%d днів</item>
+        <item quantity="other">%d дня</item>
+    </plurals>
+
+    <!-- Нагадування: сповіщення. %1$s — зсув («1 год»), %2$s — дата й час події. -->
+    <string name="reminder_channel_name">Нагадування про події</string>
+    <string name="reminder_channel_description">Нагадування, які ви ввімкнули на екрані події</string>
+    <string name="reminder_notification_body">Через %1$s · %2$s</string>
+
     <!-- Опис для читача екрана -->
     <string name="cd_previous">Попередній</string>
     <string name="cd_next">Наступний</string>

@@ -14,6 +14,8 @@ val baseUrlRelease: String = providers.gradleProperty("eventsparser.baseUrl.rele
 val fcmTopic: String = providers.gradleProperty("eventsparser.fcmTopic").get()
 val feedPageSize: String = providers.gradleProperty("eventsparser.feedPageSize").get()
 val syncPageSize: String = providers.gradleProperty("eventsparser.syncPageSize").get()
+val eventTimeZone: String = providers.gradleProperty("eventsparser.eventTimeZone").get()
+val reminderFallbackTime: String = providers.gradleProperty("eventsparser.reminderFallbackTime").get()
 
 android {
     namespace = "com.KSU.EventsParser"
@@ -34,6 +36,8 @@ android {
         buildConfigField("String", "FCM_TOPIC", "\"$fcmTopic\"")
         buildConfigField("int", "FEED_PAGE_SIZE", feedPageSize)
         buildConfigField("int", "SYNC_PAGE_SIZE", syncPageSize)
+        buildConfigField("String", "EVENT_TIME_ZONE", "\"$eventTimeZone\"")
+        buildConfigField("String", "REMINDER_FALLBACK_TIME", "\"$reminderFallbackTime\"")
     }
 
     androidResources {

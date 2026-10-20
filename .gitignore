@@ -15,3 +15,7 @@
 local.properties
 /CLAUDE.md
 /docs/
+
+# Claude Code
+.claude/settings.local.json
+.claude.bak/

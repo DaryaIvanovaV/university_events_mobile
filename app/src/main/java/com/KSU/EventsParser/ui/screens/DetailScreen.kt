@@ -1,14 +1,18 @@
 package com.KSU.EventsParser.ui.screens
 
+import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.CalendarContract
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -28,6 +32,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,9 +45,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.core.content.ContextCompat
 import com.KSU.EventsParser.R
+import com.KSU.EventsParser.core.config.AppConfig
 import com.KSU.EventsParser.domain.model.Event
+import com.KSU.EventsParser.domain.reminder.ReminderSchedule
 import com.KSU.EventsParser.ui.components.AppIcons
+import com.KSU.EventsParser.ui.components.ReminderCustomDialog
+import com.KSU.EventsParser.ui.components.ReminderPanel
 import com.KSU.EventsParser.ui.components.SectionLabel
 import com.KSU.EventsParser.ui.theme.AppColors
 import com.KSU.EventsParser.ui.theme.AppType
@@ -49,6 +63,7 @@ import com.KSU.EventsParser.ui.util.descriptionText
 import com.KSU.EventsParser.ui.util.label
 import com.KSU.EventsParser.ui.util.locationText
 import com.KSU.EventsParser.ui.util.organizerText
+import java.time.Instant
 import java.time.LocalTime
 import java.time.ZoneId
 
@@ -60,18 +75,68 @@ import java.time.ZoneId
  * телефони й прізвища. Ключа в застосунку немає й бути не повинно, тому екран
  * будується з об'єкта, який уже є в списку (див. EventsViewModel.findById).
  *
- * Блок нагадування з макета («Напоминание / За 1 час до начала») прибрано:
- * планувальника нагадувань не існує, сервер шле рівно один push у момент
- * підтвердження події. Замість нього — дії з посиланням і кодом підключення.
+ * Блок нагадування з макета («За 1 годину до початку») повернуто: одне
+ * локальне нагадування на подію з обраним зсувом (див. ReminderPanel).
+ * Окремо від нього сервер шле рівно один push у момент підтвердження події.
+ * Далі йдуть дії з посиланням і кодом підключення.
  */
 @Composable
 fun DetailScreen(
     event: Event,
+    reminderOffsetMinutes: Int?,
+    onSetReminder: (Int) -> Unit,
+    onClearReminder: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val colors = EventPalette.of(event.type)
+
+    // «Зараз» оновлюємо при зміні події чи стану нагадування — цього достатньо,
+    // щоб пресети, за які вже запізно, вимикалися.
+    val now = remember(event, reminderOffsetMinutes) { Instant.now() }
+    val availability = remember(event, now) {
+        ReminderSchedule.availability(
+            event = event,
+            now = now,
+            zone = AppConfig.eventZone,
+            fallbackTime = AppConfig.reminderFallbackTime,
+        )
+    }
+    val available = availability as? ReminderSchedule.Availability.Available
+
+    var showCustomDialog by remember { mutableStateOf(false) }
+    var permissionDenied by remember { mutableStateOf(false) }
+    // Зсув, який чекає на рішення щодо дозволу на сповіщення.
+    var pendingOffset by remember { mutableStateOf<Int?>(null) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        permissionDenied = !granted
+        val offset = pendingOffset
+        pendingOffset = null
+        // Без дозволу нічого не зберігаємо: нагадування, яке не можна показати, — обман.
+        if (granted && offset != null) onSetReminder(offset)
+    }
+
+    // Дозвіл могли відкликати в системних налаштуваннях, поки нас не було.
+    LaunchedEffect(reminderOffsetMinutes) {
+        if (reminderOffsetMinutes != null && !hasNotificationPermission(context)) {
+            permissionDenied = true
+        }
+    }
+
+    /** Вмикає (або змінює) нагадування; на Android 13+ спершу питає дозвіл. */
+    fun requestSetReminder(offsetMinutes: Int) {
+        if (hasNotificationPermission(context)) {
+            permissionDenied = false
+            onSetReminder(offsetMinutes)
+        } else {
+            pendingOffset = offsetMinutes
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     Column(
         modifier = modifier
@@ -182,6 +247,27 @@ fun DetailScreen(
                 )
             }
 
+            Panel {
+                ReminderPanel(
+                    availability = availability,
+                    offsetMinutes = reminderOffsetMinutes,
+                    now = now,
+                    permissionDenied = permissionDenied,
+                    onToggle = { wantOn ->
+                        if (!wantOn) {
+                            permissionDenied = false
+                            onClearReminder()
+                        } else if (available != null) {
+                            val offset = ReminderSchedule.defaultOffset(available.start, Instant.now())
+                            // Жоден пресет не вміщається — одразу просимо власне значення.
+                            if (offset == null) showCustomDialog = true else requestSetReminder(offset)
+                        }
+                    },
+                    onSelectOffset = ::requestSetReminder,
+                    onCustomClick = { showCustomDialog = true },
+                )
+            }
+
             // Посилання та код підключення — різні сутності, різні дії.
             if (event.link != null || event.meetingCode != null) {
                 Panel {
@@ -236,7 +322,27 @@ fun DetailScreen(
             }
         }
     }
+
+    if (showCustomDialog && available != null) {
+        ReminderCustomDialog(
+            start = available.start,
+            initialMinutes = reminderOffsetMinutes,
+            onConfirm = { minutes ->
+                showCustomDialog = false
+                requestSetReminder(minutes)
+            },
+            onDismiss = { showCustomDialog = false },
+        )
+    }
 }
+
+/** На Android 13+ без дозволу POST_NOTIFICATIONS сповіщення не показуються. */
+private fun hasNotificationPermission(context: Context): Boolean =
+    Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.POST_NOTIFICATIONS,
+        ) == PackageManager.PERMISSION_GRANTED
 
 /** Біла картка зі скругленням 14 і м'якою тінню — Panel із макета. */
 @Composable

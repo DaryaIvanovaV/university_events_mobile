@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.KSU.EventsParser.data.repository.EventsRepository
+import com.KSU.EventsParser.data.repository.ReminderRepository
 import com.KSU.EventsParser.domain.model.AppError
 import com.KSU.EventsParser.domain.model.DataResult
 import com.KSU.EventsParser.domain.model.Event
@@ -38,6 +39,7 @@ import java.time.LocalDate
  */
 class EventsViewModel(
     private val repository: EventsRepository,
+    private val reminderRepository: ReminderRepository,
 ) : ViewModel() {
 
     /** Стан останньої синхронізації — окремо від даних, які йдуть із кешу. */
@@ -93,7 +95,21 @@ class EventsViewModel(
     private val _audienceFilter = MutableStateFlow("")
     val audienceFilter: StateFlow<String> = _audienceFilter.asStateFlow()
 
+    /**
+     * Нагадування, які зараз увімкнено: eventId → зсув у хвилинах до початку.
+     * Екран деталей бере з цієї мапи стан перемикача.
+     */
+    val reminders: StateFlow<Map<Int, Int>> = reminderRepository.observeOffsets()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
+            initialValue = emptyMap(),
+        )
+
     init {
+        // Відновлюємо будильники одразу, навіть без мережі: після примусової
+        // зупинки застосунку система їх скидає, а синхронізація може й не вдатися.
+        viewModelScope.launch { reminderRepository.reconcile() }
         refresh()
     }
 
@@ -110,17 +126,32 @@ class EventsViewModel(
         viewModelScope.launch { runSync() }
     }
 
+    /** Вмикає нагадування за [offsetMinutes] до початку події (одне на подію). */
+    fun setReminder(eventId: Int, offsetMinutes: Int) {
+        viewModelScope.launch { reminderRepository.set(eventId, offsetMinutes) }
+    }
+
+    fun clearReminder(eventId: Int) {
+        viewModelScope.launch { reminderRepository.clear(eventId) }
+    }
+
     private suspend fun runSync() {
         if (syncStatus.value.inProgress) return
         syncStatus.update { it.copy(inProgress = true) }
 
         when (val result = repository.sync()) {
-            is DataResult.Success -> syncStatus.value = SyncStatus(
-                inProgress = false,
-                error = null,
-                serverReachable = true,
-                completed = true,
-            )
+            is DataResult.Success -> {
+                syncStatus.value = SyncStatus(
+                    inProgress = false,
+                    error = null,
+                    serverReachable = true,
+                    completed = true,
+                )
+                // Лише після УСПІШНОЇ синхронізації: події могли видалити (`removed`)
+                // або перенести. Після невдалої не можна — гілка 422 могла щойно
+                // очистити кеш, і reconcile вважав би події зниклими.
+                reminderRepository.reconcile()
+            }
 
             is DataResult.Failure -> {
                 // Відрізняємо «сервер лежить» від «стрічка порожня»:
@@ -159,13 +190,16 @@ class EventsViewModel(
     companion object {
         private const val STOP_TIMEOUT_MILLIS = 5_000L
 
-        fun factory(repository: EventsRepository): ViewModelProvider.Factory =
+        fun factory(
+            repository: EventsRepository,
+            reminderRepository: ReminderRepository,
+        ): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(
                     modelClass: Class<T>,
                     extras: CreationExtras,
-                ): T = EventsViewModel(repository) as T
+                ): T = EventsViewModel(repository, reminderRepository) as T
             }
     }
 }
