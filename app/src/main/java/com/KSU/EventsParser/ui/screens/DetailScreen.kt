@@ -51,8 +51,9 @@ import com.KSU.EventsParser.core.config.AppConfig
 import com.KSU.EventsParser.domain.model.Event
 import com.KSU.EventsParser.domain.reminder.ReminderSchedule
 import com.KSU.EventsParser.ui.components.AppIcons
-import com.KSU.EventsParser.ui.components.ReminderCustomDialog
+import com.KSU.EventsParser.ui.components.ReminderDatePickerDialog
 import com.KSU.EventsParser.ui.components.ReminderPanel
+import com.KSU.EventsParser.ui.components.ReminderTimePickerDialog
 import com.KSU.EventsParser.ui.components.SectionLabel
 import com.KSU.EventsParser.ui.theme.AppColors
 import com.KSU.EventsParser.ui.theme.AppType
@@ -64,6 +65,7 @@ import com.KSU.EventsParser.ui.util.label
 import com.KSU.EventsParser.ui.util.locationText
 import com.KSU.EventsParser.ui.util.organizerText
 import java.time.Instant
+import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 
@@ -75,8 +77,8 @@ import java.time.ZoneId
  * телефони й прізвища. Ключа в застосунку немає й бути не повинно, тому екран
  * будується з об'єкта, який уже є в списку (див. EventsViewModel.findById).
  *
- * Блок нагадування з макета («За 1 годину до початку») повернуто: одне
- * локальне нагадування на подію з обраним зсувом (див. ReminderPanel).
+ * Блок нагадування з макета повернуто: одне локальне нагадування на подію,
+ * момент якого (дату й час) обирає користувач (див. ReminderPanel).
  * Окремо від нього сервер шле рівно один push у момент підтвердження події.
  * Далі йдуть дії з посиланням і кодом підключення.
  */
@@ -93,7 +95,8 @@ fun DetailScreen(
     val colors = EventPalette.of(event.type)
 
     // «Зараз» оновлюємо при зміні події чи стану нагадування — цього достатньо,
-    // щоб пресети, за які вже запізно, вимикалися.
+    // щоб помітити, що подія вже почалася. Обраний момент перевіряємо окремо,
+    // на свіжому Instant.now() (див. applyPickedTrigger).
     val now = remember(event, reminderOffsetMinutes) { Instant.now() }
     val availability = remember(event, now) {
         ReminderSchedule.availability(
@@ -105,7 +108,8 @@ fun DetailScreen(
     }
     val available = availability as? ReminderSchedule.Availability.Available
 
-    var showCustomDialog by remember { mutableStateOf(false) }
+    var openPicker by remember { mutableStateOf<ReminderPicker?>(null) }
+    var invalidPick by remember { mutableStateOf(false) }
     var permissionDenied by remember { mutableStateOf(false) }
     // Зсув, який чекає на рішення щодо дозволу на сповіщення.
     var pendingOffset by remember { mutableStateOf<Int?>(null) }
@@ -136,6 +140,25 @@ fun DetailScreen(
             pendingOffset = offsetMinutes
             permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
+    }
+
+    /**
+     * Застосовує обраний у діалозі момент: переводить його в зсув і вмикає
+     * нагадування, або показує підказку, якщо момент уже минув чи не раніше початку.
+     */
+    fun applyPickedTrigger(trigger: LocalDateTime) {
+        val start = available?.start ?: return
+        val offset = ReminderSchedule.offsetFor(start, trigger, Instant.now())
+        invalidPick = offset == null
+        if (offset != null) requestSetReminder(offset)
+    }
+
+    // Від чого відштовхуються діалоги: поточний момент спрацювання, а якщо
+    // нагадування ще немає — сам початок події.
+    val currentTrigger: LocalDateTime? = available?.let { a ->
+        reminderOffsetMinutes
+            ?.let { ReminderSchedule.triggerAt(a.start, it).toLocalDateTime() }
+            ?: a.start.toLocalDateTime()
     }
 
     Column(
@@ -251,20 +274,21 @@ fun DetailScreen(
                 ReminderPanel(
                     availability = availability,
                     offsetMinutes = reminderOffsetMinutes,
-                    now = now,
                     permissionDenied = permissionDenied,
+                    invalidPick = invalidPick,
                     onToggle = { wantOn ->
+                        invalidPick = false
                         if (!wantOn) {
                             permissionDenied = false
                             onClearReminder()
                         } else if (available != null) {
                             val offset = ReminderSchedule.defaultOffset(available.start, Instant.now())
-                            // Жоден пресет не вміщається — одразу просимо власне значення.
-                            if (offset == null) showCustomDialog = true else requestSetReminder(offset)
+                            // До початку лічені хвилини — одразу просимо обрати час.
+                            if (offset == null) openPicker = ReminderPicker.TIME else requestSetReminder(offset)
                         }
                     },
-                    onSelectOffset = ::requestSetReminder,
-                    onCustomClick = { showCustomDialog = true },
+                    onPickDate = { openPicker = ReminderPicker.DATE },
+                    onPickTime = { openPicker = ReminderPicker.TIME },
                 )
             }
 
@@ -323,18 +347,36 @@ fun DetailScreen(
         }
     }
 
-    if (showCustomDialog && available != null) {
-        ReminderCustomDialog(
-            start = available.start,
-            initialMinutes = reminderOffsetMinutes,
-            onConfirm = { minutes ->
-                showCustomDialog = false
-                requestSetReminder(minutes)
-            },
-            onDismiss = { showCustomDialog = false },
-        )
+    if (available != null && currentTrigger != null) {
+        when (openPicker) {
+            ReminderPicker.DATE -> {
+                val dates = ReminderSchedule.earliestTriggerDate(available.start, Instant.now())..
+                    available.start.toLocalDate()
+                ReminderDatePickerDialog(
+                    initial = currentTrigger.toLocalDate().coerceIn(dates),
+                    dates = dates,
+                    onConfirm = { date ->
+                        openPicker = null
+                        applyPickedTrigger(date.atTime(currentTrigger.toLocalTime()))
+                    },
+                    onDismiss = { openPicker = null },
+                )
+            }
+            ReminderPicker.TIME -> ReminderTimePickerDialog(
+                initial = currentTrigger.toLocalTime(),
+                onConfirm = { time ->
+                    openPicker = null
+                    applyPickedTrigger(currentTrigger.toLocalDate().atTime(time))
+                },
+                onDismiss = { openPicker = null },
+            )
+            null -> Unit
+        }
     }
 }
+
+/** Який із діалогів вибору моменту нагадування відкрито. */
+private enum class ReminderPicker { DATE, TIME }
 
 /** На Android 13+ без дозволу POST_NOTIFICATIONS сповіщення не показуються. */
 private fun hasNotificationPermission(context: Context): Boolean =

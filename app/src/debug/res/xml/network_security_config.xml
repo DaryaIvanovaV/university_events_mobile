@@ -5,7 +5,7 @@
   HTTP для будь-якого хоста, зокрема в релізі.
 
   10.0.2.2 — машина розробника, якою її бачить емулятор Android.
-  192.168.0.109 — LAN-IP цієї ж машини у Wi-Fi мережі, потрібен для перевірки
+  10.177.36.201 — LAN-IP цієї ж машини у Wi-Fi мережі, потрібен для перевірки
   на фізичному телефоні. Якщо IP зміниться (роутер видає їх динамічно),
   замініть його тут І в eventsparser.baseUrl.debug у gradle.properties.
 -->
@@ -13,6 +13,6 @@
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="false">10.0.2.2</domain>
         <domain includeSubdomains="false">localhost</domain>
-        <domain includeSubdomains="false">192.168.0.109</domain>
+        <domain includeSubdomains="false">10.177.36.201</domain>
     </domain-config>
 </network-security-config>

@@ -20,45 +20,48 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import com.KSU.EventsParser.R
 import com.KSU.EventsParser.core.config.AppConfig
 import com.KSU.EventsParser.core.util.AppDateFormat
-import com.KSU.EventsParser.domain.reminder.ReminderOffsets
 import com.KSU.EventsParser.domain.reminder.ReminderSchedule
 import com.KSU.EventsParser.domain.reminder.ReminderSchedule.Availability
 import com.KSU.EventsParser.ui.theme.AppColors
 import com.KSU.EventsParser.ui.theme.AppType
 import com.KSU.EventsParser.ui.theme.Dimens
 import com.KSU.EventsParser.ui.theme.EventsParserTheme
-import com.KSU.EventsParser.ui.util.reminderOffsetLabel
-import java.time.Instant
+import com.KSU.EventsParser.ui.util.rememberAppLocale
+import com.KSU.EventsParser.ui.util.reminderTriggerText
 import java.time.ZonedDateTime
 
 /**
  * Вміст блоку «Нагадування» на екрані деталей (картку-обгортку малює екран).
  *
- * Без власного стану: що показувати, вирішує екран.
+ * Без власного стану: що показувати, вирішує екран. Користувач обирає не зсув
+ * («за 15 хв»), а сам момент спрацювання — дату й час; два чипи відкривають
+ * відповідні діалоги (див. ReminderPickers).
  *
  * @param availability чи можна взагалі поставити нагадування (немає дати / вже почалася).
  * @param offsetMinutes увімкнений зараз зсув у хвилинах або `null`, якщо нагадування вимкнено.
- * @param now «зараз» для визначення пресетів, які вже не вміщаються до початку події.
  * @param permissionDenied користувач відмовив у дозволі на сповіщення.
+ * @param invalidPick останній обраний момент не підійшов (уже минув чи не раніше початку).
  * @param onToggle перемикач; `true` — користувач хоче ввімкнути.
- * @param onSelectOffset вибрано пресет (у хвилинах).
- * @param onCustomClick натиснуто «Своє…».
+ * @param onPickDate натиснуто чип дати.
+ * @param onPickTime натиснуто чип часу.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ReminderPanel(
     availability: Availability,
     offsetMinutes: Int?,
-    now: Instant,
     permissionDenied: Boolean,
+    invalidPick: Boolean,
     onToggle: (Boolean) -> Unit,
-    onSelectOffset: (Int) -> Unit,
-    onCustomClick: () -> Unit,
+    onPickDate: () -> Unit,
+    onPickTime: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val available = availability as? Availability.Available
@@ -85,10 +88,17 @@ fun ReminderPanel(
                     color = AppColors.TextTitle,
                 )
                 Text(
-                    text = if (offsetMinutes != null) {
-                        stringResource(R.string.reminder_before, reminderOffsetLabel(offsetMinutes))
-                    } else {
-                        stringResource(R.string.settings_state_off)
+                    text = when {
+                        offsetMinutes == null -> stringResource(R.string.settings_state_off)
+                        // Без початку (подію перенесли чи вона вже почалася) момент
+                        // спрацювання не порахувати; пояснення дає підказка нижче.
+                        available == null -> stringResource(R.string.settings_state_on)
+                        else -> reminderTriggerText(
+                            res = LocalResources.current,
+                            locale = rememberAppLocale(),
+                            start = available.start,
+                            offsetMinutes = offsetMinutes,
+                        )
                     },
                     style = AppType.RowSubtitle,
                     color = AppColors.TextMuted,
@@ -124,6 +134,7 @@ fun ReminderPanel(
         }
 
         if (isOn && available != null) {
+            val trigger = ReminderSchedule.triggerAt(available.start, offsetMinutes)
             FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -131,22 +142,26 @@ fun ReminderPanel(
                 horizontalArrangement = Arrangement.spacedBy(Dimens.ChipGap),
                 verticalArrangement = Arrangement.spacedBy(Dimens.ChipGap),
             ) {
-                ReminderOffsets.PRESETS.forEach { preset ->
-                    ReminderChip(
-                        text = reminderOffsetLabel(preset),
-                        selected = offsetMinutes == preset,
-                        // Пресет, за який вже запізно, вимикаємо, а не ховаємо:
-                        // так видно, що він існує, але не вміщається.
-                        enabled = ReminderSchedule.isOffsetValid(available.start, preset, now),
-                        onClick = { onSelectOffset(preset) },
-                    )
-                }
                 ReminderChip(
-                    text = stringResource(R.string.reminder_custom),
-                    selected = offsetMinutes !in ReminderOffsets.PRESETS,
-                    onClick = onCustomClick,
+                    text = AppDateFormat.dayMonth(trigger.toLocalDate(), rememberAppLocale()),
+                    leadingIcon = AppIcons.Calendar,
+                    contentDescription = stringResource(R.string.cd_reminder_pick_date),
+                    onClick = onPickDate,
+                )
+                ReminderChip(
+                    text = AppDateFormat.time(trigger.toLocalTime()),
+                    leadingIcon = AppIcons.Clock,
+                    contentDescription = stringResource(R.string.cd_reminder_pick_time),
+                    onClick = onPickTime,
                 )
             }
+        }
+
+        if (invalidPick) {
+            ReminderHint(
+                text = stringResource(R.string.reminder_pick_invalid),
+                color = AppColors.CodeTint,
+            )
         }
     }
 }
@@ -165,52 +180,44 @@ private fun ReminderHint(
 }
 
 /**
- * Чип зсуву. Повторює вигляд FilterChip зі списку подій, але має ще
- * й вимкнений стан. `internal`, бо тими самими чипами користується діалог
- * власного значення.
+ * Чип дати чи часу нагадування. Повторює вигляд FilterChip зі списку подій,
+ * плюс іконка ліворуч, щоб було видно, що саме він змінює.
  */
 @Composable
-internal fun ReminderChip(
+private fun ReminderChip(
     text: String,
-    selected: Boolean,
+    leadingIcon: ImageVector,
+    contentDescription: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true,
 ) {
-    val background = when {
-        selected -> AppColors.Primary
-        !enabled -> AppColors.Divider
-        else -> AppColors.ChipIdleBg
-    }
-    val content = when {
-        selected -> AppColors.OnPrimary
-        !enabled -> AppColors.TextDisabled
-        else -> AppColors.TextChipIdle
-    }
-
-    Box(
+    Row(
         modifier = modifier
             .clip(RoundedCornerShape(Dimens.ChipRadius))
-            .background(background)
-            .clickable(enabled = enabled, onClick = onClick)
+            .background(AppColors.ChipIdleBg)
+            .clickable(onClickLabel = contentDescription, onClick = onClick)
             .padding(
                 horizontal = Dimens.FilterChipPaddingH,
                 vertical = Dimens.FilterChipPaddingV,
             ),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Dimens.ChipGap),
     ) {
+        Icon(
+            imageVector = leadingIcon,
+            contentDescription = null,
+            tint = AppColors.TextChipIdle,
+            modifier = Modifier.size(Dimens.IconInfoRow),
+        )
         Text(
             text = text,
             style = AppType.ChipFilter,
-            color = content,
+            color = AppColors.TextChipIdle,
         )
     }
 }
 
 // ─── Прев'ю ───────────────────────────────────────────────────────────────────
-
-/** Фіксований «зараз» для прев'ю: 2026-10-19 12:00 за часом подій. */
-private val PreviewNow: Instant =
-    ZonedDateTime.of(2026, 10, 19, 12, 0, 0, 0, AppConfig.eventZone).toInstant()
 
 private val PreviewStart: ZonedDateTime =
     ZonedDateTime.of(2026, 10, 25, 10, 0, 0, 0, AppConfig.eventZone)
@@ -220,6 +227,7 @@ private fun ReminderPanelPreview(
     availability: Availability,
     offsetMinutes: Int?,
     permissionDenied: Boolean = false,
+    invalidPick: Boolean = false,
 ) {
     EventsParserTheme {
         Box(
@@ -230,11 +238,11 @@ private fun ReminderPanelPreview(
             ReminderPanel(
                 availability = availability,
                 offsetMinutes = offsetMinutes,
-                now = PreviewNow,
                 permissionDenied = permissionDenied,
+                invalidPick = invalidPick,
                 onToggle = {},
-                onSelectOffset = {},
-                onCustomClick = {},
+                onPickDate = {},
+                onPickTime = {},
             )
         }
     }
@@ -252,12 +260,49 @@ private fun ReminderPanelOnPreview() {
     ReminderPanelPreview(Availability.Available(PreviewStart, usesFallbackTime = false), 60)
 }
 
+@Preview(showBackground = true, name = "Та сама доба: подія о 16:00, нагадати о 13:00")
+@Composable
+private fun ReminderPanelSameDayPreview() {
+    ReminderPanelPreview(
+        Availability.Available(PreviewStart.withHour(16), usesFallbackTime = false),
+        180,
+    )
+}
+
+@Preview(showBackground = true, name = "Через північ: подія о 00:30, нагадати о 23:30")
+@Composable
+private fun ReminderPanelCrossMidnightPreview() {
+    ReminderPanelPreview(
+        Availability.Available(
+            PreviewStart.withHour(0).withMinute(30),
+            usesFallbackTime = false,
+        ),
+        60,
+    )
+}
+
+@Preview(showBackground = true, name = "Напередодні в той самий час")
+@Composable
+private fun ReminderPanelDayBeforePreview() {
+    ReminderPanelPreview(Availability.Available(PreviewStart, usesFallbackTime = false), 1440)
+}
+
 @Preview(showBackground = true, name = "Резервний час 09:00")
 @Composable
 private fun ReminderPanelFallbackTimePreview() {
     ReminderPanelPreview(
         Availability.Available(PreviewStart.withHour(9), usesFallbackTime = true),
         180,
+    )
+}
+
+@Preview(showBackground = true, name = "Обраний момент не підходить")
+@Composable
+private fun ReminderPanelInvalidPickPreview() {
+    ReminderPanelPreview(
+        Availability.Available(PreviewStart, usesFallbackTime = false),
+        60,
+        invalidPick = true,
     )
 }
 
@@ -271,4 +316,16 @@ private fun ReminderPanelNoDatePreview() {
 @Composable
 private fun ReminderPanelStartedPreview() {
     ReminderPanelPreview(Availability.Started, null)
+}
+
+@Preview(showBackground = true, name = "Увімкнено, але подія вже почалася")
+@Composable
+private fun ReminderPanelStartedOnPreview() {
+    ReminderPanelPreview(Availability.Started, 60)
+}
+
+@Preview(showBackground = true, name = "Увімкнено, але дату прибрано")
+@Composable
+private fun ReminderPanelNoDateOnPreview() {
+    ReminderPanelPreview(Availability.NoDate, 60)
 }

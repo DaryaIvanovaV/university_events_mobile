@@ -11,12 +11,15 @@ import com.KSU.EventsParser.domain.model.AppError
 import com.KSU.EventsParser.domain.model.DataResult
 import com.KSU.EventsParser.domain.model.Event
 import com.KSU.EventsParser.domain.model.EventPage
+import com.KSU.EventsParser.domain.model.expiredIds
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import retrofit2.HttpException
 import java.io.IOException
+import java.time.Clock
 import java.time.LocalDate
 
 private const val TAG = "EventsRepository"
@@ -33,6 +36,7 @@ class EventsRepository(
     private val api: EventsApi,
     private val dao: EventDao,
     private val syncPreferences: SyncPreferences,
+    private val clock: Clock = Clock.systemUTC(),
 ) {
 
     /** Потік подій із кешу. Порядок задає SQL — такий самий, як у GET /events. */
@@ -44,6 +48,35 @@ class EventsRepository(
     /** Пряме читання однієї події з кешу — без звернення до мережі. */
     suspend fun findEvent(id: Int): Event? = withContext(Dispatchers.IO) {
         dao.findById(id)?.let(EventMapper::toDomain)
+    }
+
+    /**
+     * Видаляє з кешу події, від дати яких минула ще й одна повна доба
+     * (правило — [expiredIds]). «Сьогодні» рахуємо в поясі подій
+     * ([AppConfig.eventZone]), як і сервер, а не за поясом пристрою.
+     *
+     * Події без дати й події, чию дату мапер не розібрав (`date == null`), лишаються.
+     * Кеш — лише копія стрічки: видалене повернеться повною синхронізацією.
+     *
+     * Збій очищення не повинен ні валити застосунок, ні блокувати наступний
+     * `reconcile()`: це гігієна кешу, а не критичний шлях. Тому помилку
+     * логуємо й повертаємо 0 (скасування корутини пропускаємо далі).
+     *
+     * @return кількість видалених подій.
+     */
+    suspend fun purgeExpired(): Int = withContext(Dispatchers.IO) {
+        try {
+            val today = LocalDate.now(clock.withZone(AppConfig.eventZone))
+            val ids = expiredIds(dao.getAll().map(EventMapper::toDomain), today)
+            if (ids.isNotEmpty()) dao.deleteByIds(ids)
+            Log.d(TAG, "purge: видалено минулих подій=${ids.size}")
+            ids.size
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Не вдалося очистити минулі події", e)
+            0
+        }
     }
 
     /**

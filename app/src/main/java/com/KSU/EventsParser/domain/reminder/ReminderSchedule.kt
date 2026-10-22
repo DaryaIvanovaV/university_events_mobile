@@ -2,9 +2,12 @@ package com.KSU.EventsParser.domain.reminder
 
 import com.KSU.EventsParser.domain.model.Event
 import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import java.time.temporal.ChronoUnit
 
 /**
  * Чиста арифметика часу для нагадувань. Жодних Android-класів: усе, що тут є,
@@ -46,14 +49,48 @@ object ReminderSchedule {
     /**
      * Момент спрацювання нагадування за [offsetMinutes] до [start].
      *
-     * Цілі доби віднімаємо в ЛОКАЛЬНОМУ часі, а хвилини, що лишилися, — на шкалі
-     * миттєвостей. Так «за добу» зберігає той самий настінний час через перехід
-     * на літній/зимовий час (у Києві зимовий час настає в останню неділю жовтня).
+     * Зсув віднімаємо в ЛОКАЛЬНОМУ (настінному) часі поясу події. Так «за добу»
+     * зберігає той самий настінний час через перехід на літній/зимовий час
+     * (у Києві зимовий час настає в останню неділю жовтня), а обраний користувачем
+     * момент перетворюється на зсув і назад без втрат (див. [offsetFor]).
      */
     fun triggerAt(start: ZonedDateTime, offsetMinutes: Int): ZonedDateTime =
-        start
-            .minusDays((offsetMinutes / MINUTES_IN_DAY).toLong())
-            .minusMinutes((offsetMinutes % MINUTES_IN_DAY).toLong())
+        start.toLocalDateTime()
+            .minusMinutes(offsetMinutes.toLong())
+            .atZone(start.zone)
+
+    /**
+     * Зсув для обраного користувачем моменту [trigger] (настінний час у поясі [start])
+     * або `null`, якщо момент не підходить: уже минув, не раніше початку події
+     * або далі ніж за [ReminderOffsets.MAX].
+     */
+    fun offsetFor(start: ZonedDateTime, trigger: LocalDateTime, now: Instant): Int? {
+        val minutes = ChronoUnit.MINUTES.between(trigger, start.toLocalDateTime())
+        if (minutes !in 1..ReminderOffsets.MAX.toLong()) return null
+        val offset = minutes.toInt()
+        return offset.takeIf { isOffsetValid(start, it, now) }
+    }
+
+    /**
+     * Найраніша дата, яку можна обрати для нагадування: сьогодні (у поясі події),
+     * але не раніше ніж за [ReminderOffsets.MAX_DAYS] діб до дати початку.
+     * Межу беремо на добу ближче, щоб будь-який час обраної дати вміщався в MAX.
+     */
+    fun earliestTriggerDate(start: ZonedDateTime, now: Instant): LocalDate {
+        val today = now.atZone(start.zone).toLocalDate()
+        val limit = start.toLocalDate().minusDays((ReminderOffsets.MAX_DAYS - 1).toLong())
+        return maxOf(today, limit)
+    }
+
+    /**
+     * Чи спрацює нагадування в ту саму календарну добу, що й початок події.
+     *
+     * Порівнюємо дати в поясі [start], а не в поясі пристрою: «23:30 попередньої
+     * доби» для події о 00:30 має показатися з датою, а «13:00» для події о 16:00 —
+     * без неї. Тому [trigger] спершу переводимо в пояс [start].
+     */
+    fun isSameDay(start: ZonedDateTime, trigger: ZonedDateTime): Boolean =
+        start.toLocalDate() == trigger.withZoneSameInstant(start.zone).toLocalDate()
 
     /** Визначає, чи можна ставити нагадування на [event] у момент [now]. */
     fun availability(
@@ -76,15 +113,10 @@ object ReminderSchedule {
 
     /**
      * Зсув для першого ввімкнення: година, якщо вона ще можлива, інакше найбільший
-     * пресет, що вміщається. `null` — не вміщається жоден пресет, і UI відкриває
-     * діалог власного значення.
+     * із запасних, що вміщається. `null` — до початку лічені хвилини, і UI одразу
+     * пропонує обрати час.
      */
-    fun defaultOffset(start: ZonedDateTime, now: Instant): Int? {
-        if (isOffsetValid(start, ReminderOffsets.DEFAULT, now)) return ReminderOffsets.DEFAULT
-        return ReminderOffsets.PRESETS
-            .filter { isOffsetValid(start, it, now) }
-            .maxOrNull()
-    }
-
-    private const val MINUTES_IN_DAY = 1440
+    fun defaultOffset(start: ZonedDateTime, now: Instant): Int? =
+        (listOf(ReminderOffsets.DEFAULT) + ReminderOffsets.FALLBACKS)
+            .firstOrNull { isOffsetValid(start, it, now) }
 }

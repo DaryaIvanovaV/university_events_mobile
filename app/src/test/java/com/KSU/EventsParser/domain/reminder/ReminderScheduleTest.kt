@@ -6,6 +6,7 @@ import com.KSU.EventsParser.domain.reminder.ReminderSchedule.Availability
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -172,6 +173,134 @@ class ReminderScheduleTest {
         assertTrue(ReminderSchedule.isOffsetValid(s, 30, now))
     }
 
+    // ─── isSameDay ───────────────────────────────────────────────────────────
+
+    @Test
+    fun isSameDay_sameDayTrigger_isTrue() {
+        // DW-1.1/1.3: подія о 16:00, за 3 год → 13:00 тієї самої доби.
+        val s = start(2026, 10, 20, 16, 0)
+        val trigger = ReminderSchedule.triggerAt(s, 180)
+        assertEquals(LocalTime.of(13, 0), trigger.toLocalTime())
+        assertTrue(ReminderSchedule.isSameDay(s, trigger))
+    }
+
+    @Test
+    fun isSameDay_triggerBeforeMidnight_isFalse() {
+        // DW-1.2/1.3: подія о 00:30, за годину → 23:30 ПОПЕРЕДНЬОЇ доби.
+        val s = start(2026, 10, 20, 0, 30)
+        val trigger = ReminderSchedule.triggerAt(s, 60)
+        assertEquals(start(2026, 10, 19, 23, 30), trigger)
+        assertFalse(ReminderSchedule.isSameDay(s, trigger))
+    }
+
+    @Test
+    fun isSameDay_triggerExactlyAtMidnight_isTrue() {
+        // Межа доби: 00:30 мінус 30 хв = 00:00 тієї самої дати.
+        val s = start(2026, 10, 20, 0, 30)
+        assertTrue(ReminderSchedule.isSameDay(s, ReminderSchedule.triggerAt(s, 30)))
+    }
+
+    @Test
+    fun isSameDay_wholeDayOffset_isFalse() {
+        // DW-1.3: зсув у цілу добу завжди переносить спрацювання на іншу дату.
+        val s = start(2026, 10, 20, 16, 0)
+        val trigger = ReminderSchedule.triggerAt(s, 1440)
+        assertEquals(LocalDate.of(2026, 10, 19), trigger.toLocalDate())
+        assertFalse(ReminderSchedule.isSameDay(s, trigger))
+    }
+
+    @Test
+    fun isSameDay_zeroOffset_isTrue() {
+        val s = start(2026, 10, 20, 16, 0)
+        assertTrue(ReminderSchedule.isSameDay(s, ReminderSchedule.triggerAt(s, 0)))
+    }
+
+    @Test
+    fun isSameDay_triggerInOtherZone_comparesInZoneOfStart() {
+        // Порівняння йде за поясом початку, а не поясом самого trigger.
+        val s = start(2026, 10, 20, 0, 30)
+        // 23:30 Києва 19-го = 20:30 UTC 19-го: інша доба в обох поясах.
+        val triggerUtc = start(2026, 10, 19, 23, 30).withZoneSameInstant(ZoneId.of("UTC"))
+        assertFalse(ReminderSchedule.isSameDay(s, triggerUtc))
+        // 22:00 UTC 19-го = 01:00 Києва 20-го: за UTC це «19-те», за Києвом — «20-те».
+        val lateUtc = ZonedDateTime.of(2026, 10, 19, 22, 0, 0, 0, ZoneId.of("UTC"))
+        assertTrue(ReminderSchedule.isSameDay(s, lateUtc))
+    }
+
+    @Test
+    fun isSameDay_oneDayOffsetAcrossDstSwitch_isFalse() {
+        // 25 жовтня — перехід на зимовий час; «за добу» усе одно інша дата.
+        val s = start(2026, 10, 25, 10, 0)
+        assertFalse(ReminderSchedule.isSameDay(s, ReminderSchedule.triggerAt(s, 1440)))
+    }
+
+    // ─── offsetFor / earliestTriggerDate ─────────────────────────────────────
+
+    @Test
+    fun offsetFor_pickedMomentRoundTripsThroughTriggerAt() {
+        val s = start(2026, 10, 25, 10, 0)
+        val picked = LocalDateTime.of(2026, 10, 24, 18, 45)
+        val offset = ReminderSchedule.offsetFor(s, picked, now)
+        assertEquals(15 * 60 + 15, offset)
+        assertEquals(picked, ReminderSchedule.triggerAt(s, offset!!).toLocalDateTime())
+    }
+
+    @Test
+    fun offsetFor_acrossDstSwitch_keepsPickedWallClock() {
+        // Подія 25-го о 10:00 (вже зимовий час), нагадати 24-го о 10:30 (ще літній).
+        // Реально між ними 24,5 год, але обраний настінний час має зберегтися.
+        val s = start(2026, 10, 25, 10, 0)
+        val picked = LocalDateTime.of(2026, 10, 24, 10, 30)
+        val offset = ReminderSchedule.offsetFor(s, picked, now)!!
+        assertEquals(picked, ReminderSchedule.triggerAt(s, offset).toLocalDateTime())
+    }
+
+    @Test
+    fun offsetFor_atOrAfterStart_isNull() {
+        val s = start(2026, 10, 25, 10, 0)
+        assertNull(ReminderSchedule.offsetFor(s, LocalDateTime.of(2026, 10, 25, 10, 0), now))
+        assertNull(ReminderSchedule.offsetFor(s, LocalDateTime.of(2026, 10, 25, 11, 0), now))
+    }
+
+    @Test
+    fun offsetFor_inPast_isNull() {
+        // Зараз 19-го 12:00 — 11:59 того ж дня вже минуло.
+        val s = start(2026, 10, 25, 10, 0)
+        assertNull(ReminderSchedule.offsetFor(s, LocalDateTime.of(2026, 10, 19, 11, 59), now))
+        assertEquals(
+            LocalDateTime.of(2026, 10, 19, 12, 1),
+            ReminderSchedule.triggerAt(
+                s,
+                ReminderSchedule.offsetFor(s, LocalDateTime.of(2026, 10, 19, 12, 1), now)!!,
+            ).toLocalDateTime(),
+        )
+    }
+
+    @Test
+    fun offsetFor_beyondMax_isNull() {
+        val s = start(2026, 12, 31, 10, 0)
+        assertNull(ReminderSchedule.offsetFor(s, LocalDateTime.of(2026, 12, 1, 9, 59), now))
+        assertEquals(ReminderOffsets.MAX, ReminderSchedule.offsetFor(s, LocalDateTime.of(2026, 12, 1, 10, 0), now))
+    }
+
+    @Test
+    fun earliestTriggerDate_nearEvent_isToday() {
+        assertEquals(
+            LocalDate.of(2026, 10, 19),
+            ReminderSchedule.earliestTriggerDate(start(2026, 10, 25, 10, 0), now),
+        )
+    }
+
+    @Test
+    fun earliestTriggerDate_farEvent_isLimitedSoAnyTimeFitsMax() {
+        // Подія 31 грудня о 00:30: найраніша дата — 2 грудня, бо 2 грудня 00:00
+        // ще вміщається в 30 діб, а 1 грудня о 23:00 — уже ні.
+        val s = start(2026, 12, 31, 0, 30)
+        val earliest = ReminderSchedule.earliestTriggerDate(s, now)
+        assertEquals(LocalDate.of(2026, 12, 2), earliest)
+        assertTrue(ReminderSchedule.offsetFor(s, earliest.atStartOfDay(), now) != null)
+    }
+
     // ─── defaultOffset ───────────────────────────────────────────────────────
 
     @Test
@@ -180,50 +309,40 @@ class ReminderScheduleTest {
     }
 
     @Test
-    fun defaultOffset_eventInFortyMinutes_isLargestFittingPreset() {
-        // До початку 40 хвилин: година не вміщається, 30 хв — так, 15 хв — так.
+    fun defaultOffset_eventInFortyMinutes_isLargestFittingFallback() {
+        // До початку 40 хвилин: година не вміщається, 30 хв — так.
         val s = start(2026, 10, 19, 12, 40)
         assertEquals(30, ReminderSchedule.defaultOffset(s, now))
     }
 
     @Test
-    fun defaultOffset_eventInTwentyMinutes_isFifteen() {
-        val s = start(2026, 10, 19, 12, 20)
-        assertEquals(15, ReminderSchedule.defaultOffset(s, now))
+    fun defaultOffset_eventInTenMinutes_isFive() {
+        val s = start(2026, 10, 19, 12, 10)
+        assertEquals(5, ReminderSchedule.defaultOffset(s, now))
     }
 
     @Test
-    fun defaultOffset_eventInTenMinutes_isNull() {
-        // Жоден пресет (мінімум 15 хв) не вміщається — UI відкриє власне значення.
-        val s = start(2026, 10, 19, 12, 10)
+    fun defaultOffset_eventInThreeMinutes_isNull() {
+        // Жоден запасний зсув (мінімум 5 хв) не вміщається — UI відкриє вибір часу.
+        val s = start(2026, 10, 19, 12, 3)
         assertNull(ReminderSchedule.defaultOffset(s, now))
     }
 
     // ─── ReminderOffsets ─────────────────────────────────────────────────────
 
     @Test
-    fun presets_andLimits() {
-        assertEquals(listOf(15, 30, 60, 180, 1440), ReminderOffsets.PRESETS)
+    fun limits() {
         assertEquals(60, ReminderOffsets.DEFAULT)
         assertEquals(43_200, ReminderOffsets.MAX)
     }
 
     @Test
-    fun decompose_picksLargestExactUnit() {
-        assertEquals(OffsetAmount(15, OffsetUnit.MINUTES), ReminderOffsets.decompose(15))
-        assertEquals(OffsetAmount(90, OffsetUnit.MINUTES), ReminderOffsets.decompose(90))
-        assertEquals(OffsetAmount(1, OffsetUnit.HOURS), ReminderOffsets.decompose(60))
-        assertEquals(OffsetAmount(3, OffsetUnit.HOURS), ReminderOffsets.decompose(180))
-        assertEquals(OffsetAmount(1, OffsetUnit.DAYS), ReminderOffsets.decompose(1440))
-        assertEquals(OffsetAmount(30, OffsetUnit.DAYS), ReminderOffsets.decompose(ReminderOffsets.MAX))
-        // 25 годин не ділиться на доби націло — лишаємо години.
-        assertEquals(OffsetAmount(25, OffsetUnit.HOURS), ReminderOffsets.decompose(1500))
-    }
-
-    @Test
-    fun offsetAmount_toMinutes_isInverseOfDecompose() {
-        for (minutes in listOf(1, 15, 60, 90, 180, 1440, 1500, 2880, ReminderOffsets.MAX)) {
-            assertEquals(minutes, ReminderOffsets.decompose(minutes).toMinutes())
-        }
+    fun split_daysHoursMinutes() {
+        assertEquals(OffsetParts(0, 0, 15), ReminderOffsets.split(15))
+        assertEquals(OffsetParts(0, 1, 30), ReminderOffsets.split(90))
+        assertEquals(OffsetParts(1, 0, 0), ReminderOffsets.split(1440))
+        assertEquals(OffsetParts(1, 0, 30), ReminderOffsets.split(1470))
+        assertEquals(OffsetParts(1, 1, 0), ReminderOffsets.split(1500))
+        assertEquals(OffsetParts(30, 0, 0), ReminderOffsets.split(ReminderOffsets.MAX))
     }
 }

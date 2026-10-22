@@ -8,9 +8,10 @@
             <TabSessionState>
               <option name="projectPath" value="C:\Users\HuGox\AndroidStudioProjects\EventsParser" />
               <option name="provider" value="claude" />
+              <option name="sessionId" value="b120eaa7-65b7-48d1-9503-8d5dc5a9d8ca" />
               <option name="cwd" value="C:\Users\HuGox\AndroidStudioProjects\EventsParser" />
-              <option name="model" value="claude-opus-5[1m]" />
-              <option name="permissionMode" value="bypassPermissions" />
+              <option name="model" value="claude-opus-5-5[1m]" />
+              <option name="permissionMode" value="auto" />
             </TabSessionState>
           </value>
         </entry>
